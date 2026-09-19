@@ -16,4 +16,5 @@ data remove storage guikit:in obj
 data remove storage guikit:in page
 data remove storage guikit:in ticks
 data remove storage guikit:in timer
+data remove storage guikit:in value
 data remove storage guikit:in wrap
