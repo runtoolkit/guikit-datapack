@@ -58,3 +58,5 @@ data merge storage guikit:p {id:"open_hopper", fn:"demo:click/open_hopper"}
 function guikit:widget/probe with storage guikit:p
 data merge storage guikit:p {id:"open_shop", fn:"demo:click/open_shop"}
 function guikit:widget/probe with storage guikit:p
+data merge storage guikit:p {id:"open_chest_boat", fn:"demo:click/open_chest_boat"}
+function guikit:widget/probe with storage guikit:p
