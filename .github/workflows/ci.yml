@@ -70,7 +70,7 @@ jobs:
           path: .
 
       - name: Create release
-        uses: softprops/action-gh-release@v4
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: build-${{ github.run_number }}
           files: datapack.zip
