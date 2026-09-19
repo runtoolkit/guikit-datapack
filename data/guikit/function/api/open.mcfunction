@@ -2,7 +2,8 @@
 # Input  (storage guikit:in): {menu:"<ns>:<id>", page:0, timer:900}
 # Result: #ok guikit.const = 1 opened, 0 failed
 #
-#   data modify storage guikit:in {} set value {menu:"demo:main"}
+#   function guikit:internal/clear_in
+#   data merge storage guikit:in {menu:"demo:main"}
 #   function guikit:api/open
 
 scoreboard players set #ok guikit.const 0
