@@ -13,10 +13,13 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  build:
+  lint:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -27,8 +30,47 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Install
-        run: pip install mecha beet
+        run: pip install mecha
 
       # Runs a set of commands using the runners shell
       - name: Run a multi-line script
         run: mecha .
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Package datapack
+        run: |
+          zip -r datapack.zip . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "version.json" \
+            -x "dependencies.json"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: datapack
+          path: datapack.zip
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: datapack
+          path: .
+
+      - name: Create release
+        uses: softprops/action-gh-release@v4
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: datapack.zip
