@@ -28,17 +28,40 @@ the item is removed, and the menu is redrawn if needed.
 5. `function guikit:internal/clear_in`, then `data merge storage guikit:in {menu:"ns:id"}`, then
    `function guikit:api/open`
 
-Full working example: the separate **`guikit-demo`** datapack (2 pages; button, toggle, counter, cycle, progress, nav, close,
-random, confirm, cost, cooldown). It adds its entries to the four `#guikit:*` tags above from its own pack, so this core
+Full working example: the **`guikit-demo`** datapack (3 pages: state widgets on page 0/1 -- button,
+toggle, counter, cycle, progress, nav, close, random, confirm; command buttons, radio, meter and
+links to the themed sub-menus on page 2 -- plus two tiny one-page menus, one per themed container
+preset). It adds its entries to the four `#guikit:*` tags above from its own pack, so this core
 pack contains no menus and its tags are empty. Install both, then `/function demo:open`.
 
 > The four tag files here (`register`, `fill`, `probe`, `clear_tags`) must stay `{"values": []}` **without `replace: true`**,
 > otherwise menu packs can no longer add themselves. They must exist even when empty: `function #guikit:fill` on a
 > missing tag is an error.
 
+## Container types (`container` in `#guikit:register`)
+The `container` key on a menu (default `chest_minecart`) is normally passed straight to
+`/summon minecraft:<container>`, so any entity with slot-indexed inventory works (`chest_minecart`,
+`hopper_minecart`, ...). Two extra values are recognized as **themed presets**, not real entity
+types:
+
+| `container` | underlying entity | slots | pad color |
+| --- | --- | --- | --- |
+| `"ender_chest"` | `chest_minecart` | 27 | purple |
+| `"barrel"` | `chest_minecart` | 27 | brown |
+
+Minecraft has no `ender_chest` or `barrel` **entity** -- only the blocks -- and the whole
+framework depends on `/summon minecraft:<type>` + `item replace entity @s container.N`, which only
+works on entities. So both presets summon the real `chest_minecart` (27 slots, the same inventory
+size as a real ender chest or barrel) and are tagged `guikit.theme.ender_chest` /
+`guikit.theme.barrel` + given a matching `CustomName`, so `widget/pad` draws purple/brown panes
+instead of gray. **Not verified in a live client**: whether `CustomName` actually changes a
+minecart's container screen title was not checked against a real 26.3 client (see "Validation
+status"); if it doesn't, the menu is still fully functional, just titled "Minecart with Chest".
+See `internal/summon_themed`.
+
 ## Widget helpers (`guikit:widget/*`)
 `draw` `pad` `probe` `toggle` `counter` `cycle` `progress` `roll` `goto_page` `cooldown_start` `pay_item` `pay_score` `say`
-`button` `button_probe` (see below)
+`button` `button_probe` `radio` `meter_draw` `meter_probe` (see below)
 
 ## Conditions (`guikit:cond/check`)
 
@@ -100,8 +123,43 @@ Notes:
   `cmd:'tellraw @s {"text":"hi"}'`.
 - `cmd` runs with the permission level datapack functions get (`function-permission-level`, default 2), not the
   player's. **`cmd` / `url` must come from your menu code, never from player input** (command injection).
-- A working example is in `examples/cmd-demo/` (a second datapack, not part of the release zip). Install both, then
-  `/function cmddemo:open`.
+- A working example is on page 2 of `examples/guikit-demo` (`demo:apple`, `demo:coin`,
+  `demo:sword`, `demo:vip`, `demo:link`). `/function demo:open`, then navigate to page 2.
+
+## Widget: single-select (`guikit:widget/radio`)
+Generalizes `toggle` from a bool to N states: each option in the group calls it with its own
+literal `value` (menu code decides which slot maps to which value -- same trust model as
+`toggle` / `cycle`, no defs registry).
+
+```mcfunction
+function guikit:internal/clear_in
+data merge storage guikit:in {obj:"mode", value:2}
+function guikit:widget/radio
+```
+
+## Widget: clickable meter / rating bar (`guikit:widget/meter_draw`, `guikit:widget/meter_probe`)
+Like `progress`, but the cells are clickable: clicking cell `i` (0-based) sets the objective
+directly to `(i+1) * max / width` (floor division) instead of incrementing it. Three parts:
+
+1. **Definition**, in your `#guikit:register` listener:
+   ```mcfunction
+   data modify storage guikit:mtr defs."ns:vol" set value {obj:"volume", width:5, max:5,
+     full:"minecraft:lime_dye", empty:"minecraft:gray_dye", name:{text:"Volume",italic:false}}
+   ```
+2. **Draw**, in `#guikit:fill`:
+   ```mcfunction
+   data merge storage guikit:w {slot:20, id:"ns:vol"}
+   function guikit:widget/meter_draw with storage guikit:w
+   ```
+3. **Probe**, in `#guikit:probe` -- **ONE registration per meter, not per cell**:
+   ```mcfunction
+   data merge storage guikit:p {id:"ns:vol"}
+   function guikit:widget/meter_probe with storage guikit:p
+   ```
+
+Definition keys: `obj` (objective set on click), `width`/`max` (same scaling as `progress`),
+`full`/`empty` (item ids for filled/empty cells), `name` (SNBT text component, same as
+`progress`'s). Not verified in a live client.
 
 ## Validation status
 - **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` (now in `guikit-demo`) while
@@ -130,17 +188,22 @@ Notes:
   Root-level `data modify storage X {} ...` is avoided (buttons copy `cond` key by key).
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
+- **`ender_chest`/`barrel` container themes and the `radio`/`meter` widgets are new and untested
+  beyond `mecha .` passing** (which, per above, does not validate macro lines and is not a
+  substitute for loading the pack). In particular: whether entity `CustomName` changes a
+  `chest_minecart`'s container screen title, and the full `meter_probe` recursion (defs lookup,
+  per-cell `clear` test, scaled value write) have not been checked against a real client.
 
-## Temporary storage / path cleanup (added)
+## Temporary storage / path cleanup
 
 Scratch state is wiped so one menu session cannot leak into the next.
 
 | when | what | function |
 | --- | --- | --- |
-| menu closes (`api/close`) | `guikit:w`, `guikit:cond`, `guikit:ctx` (`menu`, `alias`, `ctype`), `guikit:p` | `guikit:internal/cleanup_player` |
+| menu closes (`api/close`) | `guikit:w`, `guikit:cond`, `guikit:ctx` (`menu`, `alias`, `ctype`), `guikit:p`, `guikit:mtr` scratch keys | `guikit:internal/cleanup_player` |
 | end of every button click | `guikit:btn cur` | `guikit:internal/clear_btn_cur` |
 | end of `api/open` | `guikit:ctx` `menu` / `alias` | inline |
-| every `/reload` | all of the above + `guikit:in` + every transient fake-player score (`#uid`, `#hit`, `#gui`, `#wcount`, ...) | `guikit:internal/cleanup_scores` |
+| every `/reload` | all of the above + `guikit:in` + every transient fake-player score (`#uid`, `#hit`, `#gui`, `#wcount`, the `#m*` meter temps, ...) | `guikit:internal/cleanup_scores` |
 | every `/reload` | carts whose owner is gone (relog / death / uid lost) are disposed | `guikit:internal/sweep_orphans` |
 
 Never touched: `guikit:reg menus` and `guikit:btn defs` (rebuilt by `#guikit:register` on load),
@@ -152,10 +215,14 @@ Two ordering traps this design avoids (both are easy to reintroduce):
 - A button `cmd` may be `function guikit:api/close`, and `btn_click` reads `guikit:btn cur` after the command.
   So `api/close` must **not** clear `guikit:btn cur`; `btn_click` clears it itself at the end.
 
-## Inventory-wipe bug - STATUS: NOT PROVEN
+The `cleanup_scores` list was never exhaustive (`progress`'s own `#f`/`#i`/`#d`/`#f2`/`#abs` aren't
+in it either) -- every temp score is always overwritten before it's read, so this is hygiene on
+`/reload`, not a correctness fix.
 
-Reported: running `/function cmddemo:open` clears the player's inventory (it should only ever remove a widget
-item after a GUI click).
+## Inventory-wipe bug -- STATUS: NOT PROVEN
+
+Reported: running `/function cmddemo:open` (now page 2 of `demo:open`) clears the player's inventory (it should
+only ever remove a widget item after a GUI click).
 
 **The root cause was not identified by reading the code.** Every `clear` in the pack is filtered by
 `custom_data~{guikit:{w:1b}}`, none targets a plain inventory. Working hypothesis (unverified): in 26.3 the
@@ -164,7 +231,9 @@ item after a GUI click).
 
 What changed, regardless of the cause:
 - The unconditional `clear` every tick is gone. Deletion now happens only after a count (`clear ... 0`) reports >= 1,
-  and only through `guikit:internal/safe_clear`.
+  and only through `guikit:internal/safe_clear` (the same count-then-delete pattern was already used by
+  `widget/probe`, `widget/button_probe` and `internal/meter_hit` -- the fix is specifically the old *unconditional*
+  `clear` at the end of `tick_player` / inside `api/close`).
 - Added `guikit:internal/selftest`. **Run it once in a real 26.3 world:**
   `/execute as @s run function guikit:internal/selftest`
   - `PASS` -> the filter works; the wipe has another cause (please send `latest.log` and the exact steps).
