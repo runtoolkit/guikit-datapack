@@ -9,16 +9,22 @@ scoreboard objectives add guikit.dirty dummy
 scoreboard objectives add guikit.uid dummy
 scoreboard objectives add guikit.const dummy
 scoreboard objectives add guikit.slots dummy
+scoreboard objectives add guikit.drop minecraft.custom:minecraft.drop
 
-scoreboard players set #version guikit.const 1
+scoreboard players set #version guikit.const 2
 # uid counter is only initialised once so uids stay unique across reloads
 execute unless score #next_uid guikit.const matches 0.. run scoreboard players set #next_uid guikit.const 1
+
+# Clear temp storage
+function guikit:internal/clear_tmp
+
+# Guard clause: prevent double initialization in the same tick
+execute if score #loaded guikit.tmp matches 1 run return run tellraw @a [{"text":"Click here","color":"green","click_event":{"action":"run_command","command":"function guikit:core/force_load"}}," ",{"text":"to force load.","color":"aqua"}]
 
 # transient scratch storage / scores are dropped on every reload (stale state from a previous run)
 function guikit:internal/clear_in
 function guikit:internal/clear_w
 function guikit:internal/clear_cond
-function guikit:internal/clear_tmp
 function guikit:internal/clear_btn_cur
 function guikit:internal/clear_mtr
 function guikit:internal/cleanup_scores
@@ -32,3 +38,8 @@ function guikit:internal/containers_builtin
 data modify storage guikit:cont bound set value {}
 data modify storage guikit:btn defs set value {}
 function #guikit:register
+
+scoreboard players set #loaded guikit.tmp 1
+data modify storage guikit:meta name set value "GUIKit"
+data modify storage guikit:meta version set value "v2"
+tellraw @a [{"storage":"guikit:meta","nbt":"name","color":"aqua","interpret":true}," ",{"text":"loaded!\n","color":"green"},{"text":"Version: ","color":"green"},{"storage":"guikit:meta","nbt":"version","color":"aqua","interpret":true}]
