@@ -66,6 +66,9 @@ function guikit:widget/draw
 function guikit:internal/clear_w
 data merge storage guikit:w {slot:17, item:"minecraft:gold_ingot", id:"open_shop", type:"nav", name:{text:"Open: registered container",color:"aqua",italic:false}, lore:[]}
 function guikit:widget/draw
+function guikit:internal/clear_w
+data merge storage guikit:w {slot:9, item:"minecraft:oak_boat", id:"open_chest_boat", type:"nav", name:{text:"Open: Oak Chest Boat",color:"aqua",italic:false}, lore:[]}
+function guikit:widget/draw
 
 # --- nav back to page 1, close
 function guikit:internal/clear_w

@@ -5,6 +5,8 @@
 data modify storage guikit:reg menus."demo:main" set value {alias:"demo_main", container:"chest_minecart"}
 data modify storage guikit:reg menus."demo:ender_chest_demo" set value {alias:"demo_ender_chest", container:"ender_chest"}
 data modify storage guikit:reg menus."demo:barrel_demo" set value {alias:"demo_barrel", container:"barrel"}
+# oak_chest_boat: added alongside the existing ender_chest/barrel themed sub-menus, same pattern
+data modify storage guikit:reg menus."demo:chest_boat_demo" set value {alias:"demo_chest_boat", container:"oak_chest_boat"}
 # a container defined by this pack (see README "Container types"): built-ins are registered first, so this is additive
 data modify storage guikit:reg containers.demo_shop set value {entity:"chest_minecart", slots:27, pad:"minecraft:cyan_stained_glass_pane", title:{text:"Demo Shop"}}
 data modify storage guikit:reg menus."demo:shop_demo" set value {alias:"demo_shop", container:"demo_shop"}
