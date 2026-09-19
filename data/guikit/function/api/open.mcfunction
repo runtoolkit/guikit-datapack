@@ -39,5 +39,7 @@ function guikit:core/redraw
 
 data remove storage guikit:in page
 data remove storage guikit:in timer
+data remove storage guikit:ctx menu
+data remove storage guikit:ctx alias
 scoreboard players set #ok guikit.const 1
 return 1
