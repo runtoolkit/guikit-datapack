@@ -5,6 +5,6 @@ function #guikit:probe
 # in which case api/close already cleared them)
 function guikit:internal/safe_clear
 
-# shift-click emptied a cart slot -> redraw. Skipped when the handler closed the menu
+# left-click emptied a cart slot -> redraw. Skipped when the handler closed the menu
 # (api/close resets guikit.uid), otherwise fill would run against a stale #uid.
 execute if score @s guikit.uid matches 1.. run scoreboard players set @s guikit.dirty 1
