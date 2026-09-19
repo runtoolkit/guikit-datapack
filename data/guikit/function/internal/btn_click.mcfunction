@@ -15,7 +15,7 @@ function guikit:internal/btn_cond
 execute if score #cond guikit.tmp matches 0 run return run function guikit:internal/btn_deny
 
 # decide now: the command may overwrite guikit:btn cur (e.g. by running another button)
-execute store success score #btn_close guikit.tmp if data storage guikit:btn cur {close:1b}
+execute store success score #btn_close guikit.tmp if data storage guikit:btn cur{close:1b}
 execute if data storage guikit:btn cur.timer run function guikit:internal/btn_timer with storage guikit:btn cur
 execute if data storage guikit:btn cur.cmd run function guikit:internal/btn_cmd with storage guikit:btn cur
 execute if data storage guikit:btn cur.url run function guikit:internal/btn_url with storage guikit:btn cur
