@@ -8,6 +8,7 @@ scoreboard objectives add guikit.cd dummy
 scoreboard objectives add guikit.dirty dummy
 scoreboard objectives add guikit.uid dummy
 scoreboard objectives add guikit.const dummy
+scoreboard objectives add guikit.slots dummy
 
 scoreboard players set #version guikit.const 1
 # uid counter is only initialised once so uids stay unique across reloads
@@ -27,5 +28,7 @@ function guikit:internal/sweep_orphans
 
 # registry is rebuilt on every reload by the #guikit:register listeners
 data modify storage guikit:reg menus set value {}
+function guikit:internal/containers_builtin
+data modify storage guikit:cont bound set value {}
 data modify storage guikit:btn defs set value {}
 function #guikit:register

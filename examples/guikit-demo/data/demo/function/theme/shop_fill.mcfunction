@@ -1,9 +1,9 @@
-# demo :: theme/ender_chest_fill   as player   (menu demo:ender_chest_demo, container:"ender_chest")
-# Built-in registry preset: purple pad + "Ender Chest" title (README "Container types").
+# demo :: theme/shop_fill   as player   (menu demo:shop_demo, container:"demo_shop")
+# The container is registered by demo:register itself: cyan pad + "Demo Shop" title.
 function guikit:widget/pad
 
 function guikit:internal/clear_w
-data merge storage guikit:w {slot:13, item:"minecraft:ender_eye", id:"label", type:"info", name:{text:"Ender Chest theme",color:"light_purple",italic:false}, lore:[{text:"27 slots, a chest_minecart with a purple pad",color:"gray",italic:false}]}
+data merge storage guikit:w {slot:13, item:"minecraft:gold_ingot", id:"label", type:"info", name:{text:"Registered container",color:"aqua",italic:false}, lore:[{text:"defined in demo:register, not in guikit",color:"gray",italic:false}]}
 function guikit:widget/draw
 
 function guikit:internal/clear_w

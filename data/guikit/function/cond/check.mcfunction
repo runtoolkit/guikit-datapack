@@ -8,6 +8,7 @@
 #   gamemode     {mode:"survival"}                    survival | creative | adventure | spectator
 #   advancement  {adv:"minecraft:story/root"}
 #   predicate    {pred:"ns:name"}
+#   level        {[min:N], [max:N]}                    XP level (not a scoreboard); both optional
 # `not:1b` inverts the result. Unknown type / missing key = fails (closed).
 #
 #   function guikit:internal/clear_cond
@@ -23,5 +24,6 @@ execute if data storage guikit:cond {type:"tag"} if data storage guikit:cond tag
 execute if data storage guikit:cond {type:"gamemode"} if data storage guikit:cond mode run function guikit:cond/t_gamemode with storage guikit:cond
 execute if data storage guikit:cond {type:"advancement"} if data storage guikit:cond adv run function guikit:cond/t_advancement with storage guikit:cond
 execute if data storage guikit:cond {type:"predicate"} if data storage guikit:cond pred run function guikit:cond/t_predicate with storage guikit:cond
+execute if data storage guikit:cond {type:"level"} run function guikit:cond/t_level
 execute if data storage guikit:cond {not:1b} run function guikit:cond/negate
 return run scoreboard players get #cond guikit.tmp

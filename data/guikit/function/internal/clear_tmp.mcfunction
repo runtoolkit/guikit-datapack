@@ -7,4 +7,8 @@
 data remove storage guikit:ctx menu
 data remove storage guikit:ctx alias
 data remove storage guikit:ctx ctype
+data remove storage guikit:ctx cdef
+data remove storage guikit:ctx uid
+data remove storage guikit:ctx pad
+data remove storage guikit:ctx i
 data remove storage guikit:p id

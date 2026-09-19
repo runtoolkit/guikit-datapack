@@ -20,4 +20,9 @@ scoreboard players reset #mc guikit.tmp
 scoreboard players reset #mval guikit.tmp
 scoreboard players reset #mmax guikit.tmp
 scoreboard players reset #mhit guikit.tmp
+# added with cond/t_level and internal/cd_notify
+scoreboard players reset #lvl guikit.tmp
+scoreboard players reset #cdleft guikit.tmp
+scoreboard players reset #pi guikit.tmp
+scoreboard players reset #cd20 guikit.tmp
 scoreboard players set #ok guikit.const 0

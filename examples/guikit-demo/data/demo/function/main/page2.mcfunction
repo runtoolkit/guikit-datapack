@@ -17,6 +17,11 @@ function guikit:internal/clear_w
 data merge storage guikit:w {slot:14, item:"minecraft:writable_book", id:"demo:link", name:{text:"Open repo link",color:"white",italic:false}, lore:[]}
 function guikit:widget/button
 
+# level-gated button (slot 15): cond type "level", needs XP level 5
+function guikit:internal/clear_w
+data merge storage guikit:w {slot:15, item:"minecraft:experience_bottle", id:"demo:lvl", name:{text:"Level 5 only",color:"green",italic:false}, lore:[{text:"Needs XP level 5",color:"gray",italic:false}]}
+function guikit:widget/button
+
 # --- radio (slots 19,20,21): difficulty, direct-assign, unlike cycle's auto-increment on page 0
 execute unless score @s demo.difficulty matches 0.. run scoreboard players set @s demo.difficulty 0
 function guikit:internal/clear_w
@@ -53,6 +58,13 @@ data merge storage guikit:w {slot:24, item:"minecraft:ender_eye", id:"open_ender
 function guikit:widget/draw
 function guikit:internal/clear_w
 data merge storage guikit:w {slot:25, item:"minecraft:barrel", id:"open_barrel", type:"nav", name:'{"text":"Open: Barrel theme","color":"gold","italic":false}', lore:'[]'}
+function guikit:widget/draw
+
+function guikit:internal/clear_w
+data merge storage guikit:w {slot:16, item:"minecraft:hopper", id:"open_hopper", type:"nav", name:{text:"Open: 5-slot hopper",color:"gray",italic:false}, lore:[]}
+function guikit:widget/draw
+function guikit:internal/clear_w
+data merge storage guikit:w {slot:17, item:"minecraft:gold_ingot", id:"open_shop", type:"nav", name:{text:"Open: registered container",color:"aqua",italic:false}, lore:[]}
 function guikit:widget/draw
 
 # --- nav back to page 1, close

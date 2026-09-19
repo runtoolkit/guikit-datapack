@@ -14,7 +14,10 @@ data remove storage guikit:in msg
 data remove storage guikit:in n
 data remove storage guikit:in obj
 data remove storage guikit:in page
+data remove storage guikit:in pitch
+data remove storage guikit:in sound
 data remove storage guikit:in ticks
 data remove storage guikit:in timer
 data remove storage guikit:in value
+data remove storage guikit:in volume
 data remove storage guikit:in wrap
