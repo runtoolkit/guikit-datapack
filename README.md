@@ -30,38 +30,63 @@ the item is removed, and the menu is redrawn if needed.
 
 Full working example: the **`guikit-demo`** datapack (3 pages: state widgets on page 0/1 -- button,
 toggle, counter, cycle, progress, nav, close, random, confirm; command buttons, radio, meter and
-links to the themed sub-menus on page 2 -- plus two tiny one-page menus, one per themed container
-preset). It adds its entries to the four `#guikit:*` tags above from its own pack, so this core
+links to the container demos on page 2 -- plus tiny one-page menus for the ender chest and barrel
+presets, a 5-slot hopper and a container registered by the demo itself). It adds its entries to the `#guikit:*` tags above from its own pack, so this core
 pack contains no menus and its tags are empty. Install both, then `/function demo:open`.
 
-> The four tag files here (`register`, `fill`, `probe`, `clear_tags`) must stay `{"values": []}` **without `replace: true`**,
+> The five tag files here (`register`, `fill`, `probe`, `clear_tags`, `on_close`) must stay `{"values": []}` **without `replace: true`**,
 > otherwise menu packs can no longer add themselves. They must exist even when empty: `function #guikit:fill` on a
 > missing tag is an error.
 
 ## Container types (`container` in `#guikit:register`)
-The `container` key on a menu (default `chest_minecart`) is normally passed straight to
-`/summon minecraft:<container>`, so any entity with slot-indexed inventory works (`chest_minecart`,
-`hopper_minecart`, ...). Two extra values are recognized as **themed presets**, not real entity
-types:
+The `container` key of a menu (default `chest_minecart`) is a **name in the container registry**,
+storage `guikit:reg containers.<name>`. If the name is not registered it is taken as a raw vanilla entity id
+(27 slots, gray pad), exactly as before. Built-ins (`internal/containers_builtin`, filled on every load before
+`#guikit:register` runs):
 
-| `container` | underlying entity | slots | pad color |
-| --- | --- | --- | --- |
-| `"ender_chest"` | `chest_minecart` | 27 | purple |
-| `"barrel"` | `chest_minecart` | 27 | brown |
+| name | entity | slots | pad | title |
+| --- | --- | --- | --- | --- |
+| `chest_minecart` | `chest_minecart` | 27 | gray | |
+| `hopper_minecart` | `hopper_minecart` | 5 | gray | |
+| `ender_chest` | `chest_minecart` | 27 | purple | Ender Chest |
+| `barrel` | `chest_minecart` | 27 | brown | Barrel |
+| `trapped_chest` | `chest_minecart` | 27 | red | Trapped Chest |
+| `shulker_box` | `chest_minecart` | 27 | magenta | Shulker Box |
+| `copper_chest` | `chest_minecart` | 27 | orange | Copper Chest |
 
-Minecraft has no `ender_chest` or `barrel` **entity** -- only the blocks -- and the whole
-framework depends on `/summon minecraft:<type>` + `item replace entity @s container.N`, which only
-works on entities. So both presets summon the real `chest_minecart` (27 slots, the same inventory
-size as a real ender chest or barrel) and are tagged `guikit.theme.ender_chest` /
-`guikit.theme.barrel` + given a matching `CustomName`, so `widget/pad` draws purple/brown panes
-instead of gray. **Not verified in a live client**: whether `CustomName` actually changes a
-minecart's container screen title was not checked against a real 26.3 client (see "Validation
-status"); if it doesn't, the menu is still fully functional, just titled "Minecart with Chest".
-See `internal/summon_themed`.
+The themed ones are cosmetic: Minecraft has no ender chest / barrel **entity**, and the framework needs
+`/summon` + `item replace entity @s container.N`, so they are a `chest_minecart` with a different pad and title.
+
+**Register your own** from a `#guikit:register` listener (runs after the built-ins, so it can also replace one):
+
+```mcfunction
+data modify storage guikit:reg containers.shop set value {entity:"chest_minecart", slots:27, pad:"minecraft:cyan_stained_glass_pane", title:{text:"Shop"}}
+data modify storage guikit:reg menus."ns:shop" set value {alias:"ns_shop", container:"shop"}
+```
+
+| key | meaning | default |
+| --- | --- | --- |
+| `entity` | vanilla entity id **without** `minecraft:`; must be in the entity type tag `#guikit:container` | the registry name |
+| `slots` | inventory size: how many slots `widget/pad` fills (a cart never has more than 27) | `27` |
+| `pad` | item id `widget/pad` puts in every slot | `minecraft:gray_stained_glass_pane` |
+| `title` | optional **SNBT text component** (`{text:"Shop"}`), becomes the container title | none |
+
+- Registry names are plain keys (`shop`, `ns_shop`); quote the path if you use a colon: `containers."ns:shop"`.
+- `title` must be a compound, not `'{"text":"Shop"}'`: in 26.3 a quoted string is a plain string and the title
+  would show the JSON itself.
+- To use another entity type, add it to `#guikit:container` from your own pack (tag file without `replace: true`).
+  Only vanilla entities whose inventory is addressed as `container.N` work. If the entity is not in the tag, or the
+  summon fails, `api/open` removes what it created, tells the player *could not open the menu ...* and returns 0
+  (before, such a cart would have stayed in the world forever).
+- While a menu is open, `@s guikit.slots` is its slot count, e.g. `execute if score @s guikit.slots matches 27.. run ...`
+  in a `#guikit:fill` listener. A widget aimed at a slot the cart does not have shows `could not draw widget`.
+- A plain 27-slot gray `chest_minecart` keeps using the static `widget/pad_cart`; anything else is tagged
+  `guikit.styled` at summon and filled by `widget/pad_cart_dyn` from the definition kept per owner uid
+  (`guikit:cont bound.u<uid>`, dropped again by `api/close`).
 
 ## Widget helpers (`guikit:widget/*`)
 `draw` `pad` `probe` `toggle` `counter` `cycle` `progress` `roll` `goto_page` `cooldown_start` `pay_item` `pay_score` `say`
-`button` `button_probe` `radio` `meter_draw` `meter_probe` (see below)
+`button` `button_probe` `radio` `meter_draw` `meter_probe` `sound` (see below)
 
 ## Conditions (`guikit:cond/check`)
 
@@ -82,6 +107,7 @@ Runs `as` the player. Result: `#cond guikit.tmp` = 1 / 0 (also the return value)
 | `gamemode` | `mode` | `survival` / `creative` / `adventure` / `spectator` |
 | `advancement` | `adv` | e.g. `minecraft:story/root` |
 | `predicate` | `pred` | any predicate, so anything not listed can still be a condition |
+| `level` | optional `min`, `max` | XP **level** (the number above the hotbar, not a scoreboard); with neither key any level passes. Not verified in a live client |
 
 `not:1b` inverts. An unknown `type` or a missing key **fails** (result 0). Every type is its own small function
 (`guikit:cond/t_*`); `min`/`max` are two open-ended ranges, never a closed `A..B`.
@@ -161,6 +187,49 @@ Definition keys: `obj` (objective set on click), `width`/`max` (same scaling as 
 `full`/`empty` (item ids for filled/empty cells), `name` (SNBT text component, same as
 `progress`'s). Not verified in a live client.
 
+## Widget: sound (`guikit:widget/sound`)
+Plays a sound to the clicking player only (`ui` category, so it follows the client's Master volume
+and nothing else). Call it from a click handler, `as @s at @s`:
+
+```mcfunction
+function guikit:internal/clear_in
+data merge storage guikit:in {sound:"minecraft:ui.button.click", volume:1.0, pitch:1.0}
+function guikit:widget/sound
+```
+
+`sound` is required (a missing one returns 0 and plays nothing); `volume` / `pitch` default to `1.0`.
+It does not mark the menu dirty. `sound` is macro-expanded raw, so it must come from your menu code,
+never from player input. Working example: `demo:click/sound` (via `demo:internal/click_pling`).
+
+## API: redraw without reopening (`guikit:api/refresh`)
+```mcfunction
+execute as <player> run function guikit:api/refresh
+```
+For code **outside** guikit (another datapack, a `trigger` handler, a timer) that changed something the
+menu shows. Result `1` = redraw scheduled, `0` = that player has no open menu (nothing is touched).
+It only sets `guikit.dirty`; the redraw itself happens on the player's next `tick_player`, so calling it
+several times in one tick still draws once. Widget handlers do not need it -- they already mark the
+menu dirty.
+
+## Hook: `#guikit:on_close`
+Called at the end of `guikit:api/close`, `as` the player whose menu just closed, for cleanup of your own
+per-menu state. **Two things to know before you write a listener:**
+- `api/open` calls `api/close` in the middle of its own run to dispose a previous menu, so `on_close`
+  also fires when the player merely **switches** menus. Only reset state that is safe to lose then.
+- It runs *after* the cart is gone and the player's guikit scores are reset. Do not call `api/open` /
+  `api/refresh` from a listener expecting the old menu to still exist.
+
+Same rules as the other tags: must exist (even empty) and must not use `replace: true`. Example:
+`demo:on_close` (disarms the danger button).
+
+## Cooldown feedback (`guikit:internal/cd_notify`)
+`widget/cooldown_start` returns `0` while a cooldown runs but tells the player nothing. To show the
+remaining time (rounded up to whole seconds, `guikit.cd` counts ticks):
+```mcfunction
+execute unless function guikit:widget/cooldown_start run function guikit:internal/cd_notify
+```
+`cd_notify` reads `@s guikit.cd` directly and prints `[GUI] Wait Ns.` to that player. Not used by the demo.
+
 ## Validation status
 - **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` (now in `guikit-demo`) while
   **Minecraft 26.3 rejected it** (`Whilst parsing command on line 5 ... at position 48`, right before `run`).
@@ -186,13 +255,18 @@ Definition keys: `obj` (objective set on click), `width`/`max` (same scaling as 
   attached to it: `cur{close:1b}`. Fixed. Loaded in a real 26.3 client: only that load error was seen; clicks, cond
   types and the demo menu are still untested. Check `latest.log`, and try each cond type once.
   Root-level `data modify storage X {} ...` is avoided (buttons copy `cond` key by key).
+- **`cond` type `level`, `widget/sound`, `api/refresh`, `#guikit:on_close`, `internal/cd_notify` are new and**
+  **untested beyond `mecha .`** (which does not validate macro lines). Specifically unchecked in a real 26.3
+  client: `experience query @s levels` storing into a score, `playsound ... ui @s` argument order, the
+  `execute unless function ...` form used in the `cd_notify` example, and the `on_close` firing on
+  menu switch described above.
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
-- **`ender_chest`/`barrel` container themes and the `radio`/`meter` widgets are new and untested
-  beyond `mecha .` passing** (which, per above, does not validate macro lines and is not a
-  substitute for loading the pack). In particular: whether entity `CustomName` changes a
-  `chest_minecart`'s container screen title, and the full `meter_probe` recursion (defs lookup,
-  per-cell `clear` test, scaled value write) have not been checked against a real client.
+- **The container registry (`internal/containers_builtin`, `summon`, `pad_cart_dyn`, `open_fail`), the `radio`/`meter`
+  widgets and the container demos are new and untested beyond `mecha .`** (which does not validate macro lines and is
+  not a substitute for loading the pack; the macro lines were expanded with sample values and linted). Not checked in
+  a real client: whether a `CustomName` changes the container screen title, the 5-slot hopper menu, the
+  `guikit.styled` pad path (recursion in `pad_step`), the `open_fail` rollback, and the full `meter_probe` recursion.
 
 ## Temporary storage / path cleanup
 

@@ -1,10 +1,15 @@
 # demo :: register     (called through #guikit:register on every load)
 # A menu = { alias (tag-safe), container }.  Everything else is code, not config.
-# Three menus now: the main demo (unchanged mechanic, chest_minecart) plus one small menu per
-# themed container preset, to actually show them summoned (see README "Container types").
+# The main demo (chest_minecart) plus one small menu per container flavour, to actually show them
+# summoned: ender chest / barrel presets, a 5-slot hopper, and a container registered right here.
 data modify storage guikit:reg menus."demo:main" set value {alias:"demo_main", container:"chest_minecart"}
 data modify storage guikit:reg menus."demo:ender_chest_demo" set value {alias:"demo_ender_chest", container:"ender_chest"}
 data modify storage guikit:reg menus."demo:barrel_demo" set value {alias:"demo_barrel", container:"barrel"}
+# a container defined by this pack (see README "Container types"): built-ins are registered first, so this is additive
+data modify storage guikit:reg containers.demo_shop set value {entity:"chest_minecart", slots:27, pad:"minecraft:cyan_stained_glass_pane", title:{text:"Demo Shop"}}
+data modify storage guikit:reg menus."demo:shop_demo" set value {alias:"demo_shop", container:"demo_shop"}
+# built-in 5-slot container
+data modify storage guikit:reg menus."demo:hopper_demo" set value {alias:"demo_hopper", container:"hopper_minecart"}
 
 scoreboard objectives add demo.sound_on dummy
 scoreboard objectives add demo.volume dummy
@@ -22,6 +27,8 @@ data modify storage guikit:btn defs."demo:coin" set value {cmd:"scoreboard playe
 data modify storage guikit:btn defs."demo:sword" set value {cmd:"function demo:internal/buy_sword", timer:1200, deny:"You need 5 coins.", cond:{type:"score", obj:"demo.coins", min:5}}
 # tag condition, JSON inside the command -> single-quoted SNBT string
 data modify storage guikit:btn defs."demo:vip" set value {cmd:'tellraw @s {"text":"Welcome, VIP!","color":"gold"}', timer:1200, deny:"VIP only. Try: /tag @s add vip", cond:{type:"tag", tag:"vip"}, locked_item:"minecraft:iron_bars"}
+# XP level condition (cond type "level", see README "Conditions")
+data modify storage guikit:btn defs."demo:lvl" set value {cmd:'tellraw @s {"text":"Level 5 reached!","color":"green"}', timer:1200, deny:"You need XP level 5.", cond:{type:"level", min:5}, locked_item:"minecraft:iron_bars"}
 # link
 data modify storage guikit:btn defs."demo:link" set value {url:"https://github.com/runtoolkit/guikit-datapack", close:1b}
 

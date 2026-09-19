@@ -25,6 +25,7 @@ scoreboard players add #next_uid guikit.const 1
 
 # summon + bind cart to owner
 function guikit:internal/summon with storage guikit:in
+execute unless entity @e[type=#guikit:container,tag=guikit.new,distance=..1] run return run function guikit:internal/open_fail
 scoreboard players operation @e[type=#guikit:container,tag=guikit.new,distance=..1,limit=1] guikit.uid = @s guikit.uid
 tag @e[type=#guikit:container,tag=guikit.new,distance=..1] remove guikit.new
 
