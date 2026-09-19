@@ -9,6 +9,7 @@ scoreboard objectives add guikit.dirty dummy
 scoreboard objectives add guikit.uid dummy
 scoreboard objectives add guikit.const dummy
 scoreboard objectives add guikit.slots dummy
+scoreboard objectives add guikit.drop minecraft.custom:minecraft.drop
 
 scoreboard players set #version guikit.const 1
 # uid counter is only initialised once so uids stay unique across reloads
