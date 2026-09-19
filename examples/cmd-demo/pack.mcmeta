@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "guikit example: command buttons + conditions (needs the guikit core pack)",
+    "min_format": 121,
+    "max_format": 121
+  }
+}

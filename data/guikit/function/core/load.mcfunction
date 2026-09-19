@@ -15,4 +15,5 @@ execute unless score #next_uid guikit.const matches 0.. run scoreboard players s
 
 # registry is rebuilt on every reload by the #guikit:register listeners
 data modify storage guikit:reg menus set value {}
+data modify storage guikit:btn defs set value {}
 function #guikit:register
