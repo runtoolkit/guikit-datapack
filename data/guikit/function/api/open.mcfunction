@@ -3,7 +3,7 @@
 # Result: #ok guikit.const = 1 opened, 0 failed
 #
 #   function guikit:internal/clear_in
-#   data merge storage guikit:in {menu:"demo:main"}
+#   data merge storage guikit:in {menu:"ns:id"}
 #   function guikit:api/open
 
 scoreboard players set #ok guikit.const 0
