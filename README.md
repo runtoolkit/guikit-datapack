@@ -131,6 +131,49 @@ Notes:
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
 
+## Temporary storage / path cleanup (added)
+
+Scratch state is wiped so one menu session cannot leak into the next.
+
+| when | what | function |
+| --- | --- | --- |
+| menu closes (`api/close`) | `guikit:w`, `guikit:cond`, `guikit:ctx` (`menu`, `alias`, `ctype`), `guikit:p` | `guikit:internal/cleanup_player` |
+| end of every button click | `guikit:btn cur` | `guikit:internal/clear_btn_cur` |
+| end of `api/open` | `guikit:ctx` `menu` / `alias` | inline |
+| every `/reload` | all of the above + `guikit:in` + every transient fake-player score (`#uid`, `#hit`, `#gui`, `#wcount`, ...) | `guikit:internal/cleanup_scores` |
+| every `/reload` | carts whose owner is gone (relog / death / uid lost) are disposed | `guikit:internal/sweep_orphans` |
+
+Never touched: `guikit:reg menus` and `guikit:btn defs` (rebuilt by `#guikit:register` on load),
+`#next_uid` / `#version` (uid counter must stay unique across reloads).
+
+Two ordering traps this design avoids (both are easy to reintroduce):
+- `api/open` calls `api/close` in the middle of its own run, then reads `guikit:in`. So `cleanup_player`
+  must **not** clear `guikit:in`.
+- A button `cmd` may be `function guikit:api/close`, and `btn_click` reads `guikit:btn cur` after the command.
+  So `api/close` must **not** clear `guikit:btn cur`; `btn_click` clears it itself at the end.
+
+## Inventory-wipe bug - STATUS: NOT PROVEN
+
+Reported: running `/function cmddemo:open` clears the player's inventory (it should only ever remove a widget
+item after a GUI click).
+
+**The root cause was not identified by reading the code.** Every `clear` in the pack is filtered by
+`custom_data~{guikit:{w:1b}}`, none targets a plain inventory. Working hypothesis (unverified): in 26.3 the
+`*[custom_data~{...}]` filter is not applied as expected, so `clear @s *[...]` wipes everything. That fits
+"it happens right after open" because `tick_player` used to run an unconditional `clear` every tick.
+
+What changed, regardless of the cause:
+- The unconditional `clear` every tick is gone. Deletion now happens only after a count (`clear ... 0`) reports >= 1,
+  and only through `guikit:internal/safe_clear`.
+- Added `guikit:internal/selftest`. **Run it once in a real 26.3 world:**
+  `/execute as @s run function guikit:internal/selftest`
+  - `PASS` -> the filter works; the wipe has another cause (please send `latest.log` and the exact steps).
+  - `FAIL - filter matches NON-widget items` -> hypothesis confirmed; the `*[custom_data~...]` form must be replaced.
+  Note: `selftest` uses `give`, so test in a world where a stray stick is acceptable.
+
+Not verified in a real game: everything in this section. `mecha .` passes, and every `function guikit:` reference
+resolves, but per the validation notes above that does not prove the pack loads or behaves correctly.
+
 ## Known limits
 - `guikit:widget/pad` always stamps 27 slots -> **do not use with `hopper_minecart`** (5 slots).
 - If a menu draws a widget under `execute if score ... matches N run function guikit:internal/clear_w` + `... run data merge`

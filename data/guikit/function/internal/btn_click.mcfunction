@@ -20,3 +20,6 @@ execute if data storage guikit:btn cur.timer run function guikit:internal/btn_ti
 execute if data storage guikit:btn cur.cmd run function guikit:internal/btn_cmd with storage guikit:btn cur
 execute if data storage guikit:btn cur.url run function guikit:internal/btn_url with storage guikit:btn cur
 execute if score #btn_close guikit.tmp matches 1 if score @s guikit.uid matches 1.. run function guikit:api/close
+
+# transient: nothing may leak into the next click
+function guikit:internal/clear_btn_cur
