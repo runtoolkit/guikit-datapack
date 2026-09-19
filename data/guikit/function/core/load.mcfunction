@@ -19,6 +19,7 @@ function guikit:internal/clear_w
 function guikit:internal/clear_cond
 function guikit:internal/clear_tmp
 function guikit:internal/clear_btn_cur
+function guikit:internal/clear_mtr
 function guikit:internal/cleanup_scores
 
 # carts that lost their owner across a reload / relog are removed

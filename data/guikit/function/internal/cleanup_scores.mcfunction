@@ -11,4 +11,13 @@ scoreboard players reset #paid guikit.tmp
 scoreboard players reset #cond guikit.tmp
 scoreboard players reset #draw_ok guikit.tmp
 scoreboard players reset #btn_close guikit.tmp
+# meter widget temps (see internal/meter_hit, internal/meter_probe_loop) -- this list was never
+# exhaustive to begin with (progress's own #f/#i/#d/#f2/#abs aren't reset here either, since
+# every one of these is always overwritten before it's read), added for consistency with the
+# other click-time scratch scores rather than because leaving them out was causing a bug.
+scoreboard players reset #mw guikit.tmp
+scoreboard players reset #mc guikit.tmp
+scoreboard players reset #mval guikit.tmp
+scoreboard players reset #mmax guikit.tmp
+scoreboard players reset #mhit guikit.tmp
 scoreboard players set #ok guikit.const 0

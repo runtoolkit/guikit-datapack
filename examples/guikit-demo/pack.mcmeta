@@ -1,6 +1,6 @@
 {
   "pack": {
-    "description": "guikit-demo - example menu for guikit (requires the guikit datapack)",
+    "description": "guikit-demo - example menus for guikit: state widgets, command buttons, radio, meter, themed containers (requires the guikit core datapack)",
     "min_format": 121,
     "max_format": 121
   }

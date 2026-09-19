@@ -7,3 +7,4 @@
 function guikit:internal/clear_w
 function guikit:internal/clear_cond
 function guikit:internal/clear_tmp
+function guikit:internal/clear_mtr

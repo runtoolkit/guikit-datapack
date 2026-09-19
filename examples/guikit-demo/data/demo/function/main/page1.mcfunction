@@ -9,5 +9,8 @@ function guikit:internal/clear_w
 data merge storage guikit:w {slot:18, item:"minecraft:arrow", id:"to_page0", type:"nav", name:'{"text":"Back","color":"white","italic":false}', lore:'[]'}
 function guikit:widget/draw
 function guikit:internal/clear_w
+data merge storage guikit:w {slot:22, item:"minecraft:writable_book", id:"to_page2", type:"nav", name:'{"text":"Buttons & more","color":"aqua","italic":false}', lore:'[{"text":"Command buttons, radio, meter, themed containers","color":"gray","italic":false}]'}
+function guikit:widget/draw
+function guikit:internal/clear_w
 data merge storage guikit:w {slot:26, item:"minecraft:barrier", id:"close", type:"close", name:'{"text":"Close","color":"red","italic":false}', lore:'[]'}
 function guikit:widget/draw
