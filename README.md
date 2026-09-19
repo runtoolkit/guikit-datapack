@@ -74,7 +74,7 @@ Three parts, each one line or one pair of lines:
    ```
 2. **Draw**, in `#guikit:fill` (same keys as `widget/draw` minus `type`; call `clear_w` first):
    ```mcfunction
-   data merge storage guikit:w {slot:14, item:"minecraft:iron_sword", id:"ns:buy", name:'{"text":"Buy","italic":false}', lore:'[]'}
+   data merge storage guikit:w {slot:14, item:"minecraft:iron_sword", id:"ns:buy", name:{text:"Buy",italic:false}, lore:[]}
    function guikit:widget/button
    ```
 3. **Probe**, in `#guikit:probe`:
@@ -123,7 +123,10 @@ Notes:
   When you add a new key to a `guikit:in` / `guikit:w` call, add it to the matching `clear_*` function too.
 - **Conditions / command buttons (`cond/*`, `widget/button*`, `internal/btn_*`):** `mecha .` passes and every macro
   line was expanded with sample values and re-linted with mecha (all parse). That is all that was checked:
-  **not loaded in a real 26.3 client yet**. Load the pack, check `latest.log`, and try each cond type once.
+  **mecha does not catch everything here**: it accepted `if data storage guikit:btn cur {close:1b}` (path, space, compound)
+  which 26.3 rejects at load (`Incorrect argument for command`). A compound filter on a non-root path must be
+  attached to it: `cur{close:1b}`. Fixed. Loaded in a real 26.3 client: only that load error was seen; clicks, cond
+  types and the demo menu are still untested. Check `latest.log`, and try each cond type once.
   Root-level `data modify storage X {} ...` is avoided (buttons copy `cond` key by key).
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
@@ -133,9 +136,11 @@ Notes:
 - If a menu draws a widget under `execute if score ... matches N run function guikit:internal/clear_w` + `... run data merge`
   and no range matches, `guikit:w` is empty and `guikit:widget/draw` fails on missing macro arguments instead of
   redrawing the previous widget. Initialize scores before drawing.
-- `name` / `lore` enter the macro as **raw SNBT strings**. If you write `name:'...'` in the definition
-  line and the text contains `'`, the **definition line** becomes invalid (verified with mecha); escape it as
-  `Bob\'s`. The expanded `item replace` command itself is fine with `'` in the text.
+- `name` / `lore` are **SNBT text components**, not JSON strings: `name:{text:"Bob's",color:"gold",italic:false}`,
+  `lore:[{text:"line",color:"gray",italic:false}]`, `lore:[]`. In 26.3 a *quoted* string such as
+  `custom_name='{"text":" "}'` is a plain string, so the tooltip shows the JSON text literally (that is what the pad
+  panes did before this fix). Compound values are expanded into the macro as SNBT, so `'` in text needs no escaping.
+  If a widget cannot be placed, `widget/draw` now tells nearby players `could not draw widget <id> in slot N`.
 - `confirm` is simplified (in `guikit-demo`) to a "click twice to confirm" flow instead of a separate page as in the source.
 - `cond` on a button is evaluated on every redraw (once per button) and again on click; keep conditions cheap.
 - The older `pay_item` helper also counts the clicked widget item when it is the same item type as the price

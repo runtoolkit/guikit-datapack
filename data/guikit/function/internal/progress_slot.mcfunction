@@ -8,5 +8,5 @@ $data modify storage guikit:w id set value "$(id)_$(cell)"
 data modify storage guikit:w type set value "progress"
 $data modify storage guikit:w name set value '$(name)'
 data modify storage guikit:w slot set from storage guikit:pg abs
-data modify storage guikit:w lore set value '[]'
+data modify storage guikit:w lore set value []
 function guikit:widget/draw
