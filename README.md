@@ -28,18 +28,23 @@ the item is removed, and the menu is redrawn if needed.
 5. `function guikit:internal/clear_in`, then `data merge storage guikit:in {menu:"ns:id"}`, then
    `function guikit:api/open`
 
-Full working example: `data/demo/` (2 pages; button, toggle, counter, cycle, progress, nav, close, random, confirm, cost, cooldown).
-Open it with `/function demo:open`.
+Full working example: the separate **`guikit-demo`** datapack (2 pages; button, toggle, counter, cycle, progress, nav, close,
+random, confirm, cost, cooldown). It adds its entries to the four `#guikit:*` tags above from its own pack, so this core
+pack contains no menus and its tags are empty. Install both, then `/function demo:open`.
+
+> The four tag files here (`register`, `fill`, `probe`, `clear_tags`) must stay `{"values": []}` **without `replace: true`**,
+> otherwise menu packs can no longer add themselves. They must exist even when empty: `function #guikit:fill` on a
+> missing tag is an error.
 
 ## Widget helpers (`guikit:widget/*`)
 `draw` `pad` `probe` `toggle` `counter` `cycle` `progress` `roll` `goto_page` `cooldown_start` `pay_item` `pay_score` `say`
 
 ## Validation status
-- **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` while
+- **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` (now in `guikit-demo`) while
   **Minecraft 26.3 rejected it** (`Whilst parsing command on line 5 ... at position 48`, right before `run`).
   So mecha is not a substitute for loading the pack in the real game. It also does not validate macro
   lines (lines starting with `$`).
-- **Verified in a real 26.3 client (from `latest.log`):** the only load error was `demo:click/lootbox`.
+- **Verified in a real 26.3 client (from `latest.log`):** the only load error was `demo:click/lootbox` (in what is now `guikit-demo`).
   It used the pattern `execute if score ... matches A..B run give ...`. It was rewritten to use only
   open-ended ranges and a separate function per reward. The **exact grammar reason 26.3 rejects the old
   line was not identified**; the rewrite removes both suspects (the closed range and `run give`).
@@ -57,13 +62,13 @@ Open it with `/function demo:open`.
 
 ## Known limits
 - `guikit:widget/pad` always stamps 27 slots -> **do not use with `hopper_minecart`** (5 slots).
-- Demo pattern `execute if score ... matches N run function guikit:internal/clear_w` + `... run data merge`:
-  if no range matches, `guikit:w` is empty and `guikit:widget/draw` fails on missing macro arguments
-  instead of redrawing the previous widget. Initialize scores before drawing (the demo does).
+- If a menu draws a widget under `execute if score ... matches N run function guikit:internal/clear_w` + `... run data merge`
+  and no range matches, `guikit:w` is empty and `guikit:widget/draw` fails on missing macro arguments instead of
+  redrawing the previous widget. Initialize scores before drawing.
 - `name` / `lore` enter the macro as **raw SNBT strings**. If you write `name:'...'` in the definition
   line and the text contains `'`, the **definition line** becomes invalid (verified with mecha); escape it as
   `Bob\'s`. The expanded `item replace` command itself is fine with `'` in the text.
-- `confirm` is simplified in the demo to a "click twice to confirm" flow instead of a separate page as in the source.
+- `confirm` is simplified (in `guikit-demo`) to a "click twice to confirm" flow instead of a separate page as in the source.
 - The source's `condition` (item_count / score / tag / gamemode / advancement) has no helper; each is a
   one-line `execute if ...`, so write it by hand in the handler.
 - The source's `link` widget is missing (`tellraw` + `click_event` open_url; one line, write it in the handler).
