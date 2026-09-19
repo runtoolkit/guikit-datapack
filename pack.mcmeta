@@ -1,6 +1,6 @@
 {
   "pack": {
-    "description": "guikit - Minecraft GUI framework (chest_minecart + shift-click)",
+    "description": "guikit - Minecraft GUI framework (chest_minecart + left-click)",
     "min_format": 121,
     "max_format": 121
   }

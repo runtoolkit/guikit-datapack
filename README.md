@@ -6,9 +6,9 @@ Instead of describing menus in JSON, you write `.mcfunction` files and call `gui
 Target: Minecraft Java **26.3** (`min_format` / `max_format` **121**). Older versions need a matching `pack.mcmeta` value.
 
 ## Mechanic (same as the source)
-Widget items are stamped onto a `chest_minecart` with `item replace`. Shift-clicking moves the item out of the
+Widget items are stamped onto a `chest_minecart` with `item replace`. left-clicking moves the item out of the
 cart, so `#guikit:fill` re-runs after every click to refill the empty slot. When the player
-**shift-clicks** one, the item lands in their inventory, `clear` detects it, the handler runs,
+**left-clicks** one, the item lands in their inventory, `clear` detects it, the handler runs,
 the item is removed, and the menu is redrawn if needed.
 
 ## Differences from the source
