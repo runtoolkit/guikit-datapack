@@ -1,0 +1,12 @@
+# LF everywhere: mecha, Minecraft and the CI checks all expect it. CRLF crept in through uploads from Windows
+# (`hygiene` in CI reports any tracked text file that has it).
+* text=auto eol=lf
+*.mcfunction text eol=lf
+*.json text eol=lf
+*.mcmeta text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf
+*.zip binary
+*.png binary
