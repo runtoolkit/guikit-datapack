@@ -3,12 +3,14 @@
 # cache-dependency-path given, that action still globs the repo for **/requirements.txt or
 # **/pyproject.toml to build its cache key — and this repo has neither, so it always failed with
 # "No file ... matched, make sure you have checked out the target repository". ubuntu-24.04 runners
-# ship Python 3.12 preinstalled, so this version skips the action entirely and uses the system
+# ship Python 3.12 preinstalled, so this workflow skips the action entirely and uses the system
 # python3 / pip directly. mecha is installed straight from PyPI; no dependency file needed.
 #  [1] least-privilege permissions   [2] concurrency        [3] pinned runner       [4] job timeouts
 #  [5] manual inputs                 [6] weekly schedule    [8] lint matrix (all packs)
-# [17] core + demo zips  [18] zip verification   [19] SHA256SUMS
-# [20] release notes + opt-in pruning of old build-* releases
+#  [9] JSON syntax check for every .json in the repo (mecha only parses .mcfunction, not json_files)
+# [10] pack.mcmeta consistency check (root vs examples/guikit-demo: same min_format/max_format)
+# [17] core + demo zips  [18] zip verification   [21] re-run mecha against the packaged zips
+# [19] SHA256SUMS         [20] release notes + opt-in pruning of old build-* releases
 
 name: CI
 
@@ -69,8 +71,49 @@ jobs:
       - name: Run mecha
         run: python3 -m mecha "${{ matrix.pack }}"
 
+      # [9] mecha's default pipeline only compiles .mcfunction files; advancement/tag json under
+      # data/ is never parsed, so a broken json (trailing comma, bad quoting) would pass mecha
+      # silently and only surface in-game. python -m json.tool catches that at CI time instead.
+      - name: Validate JSON files
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! python3 -m json.tool "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::invalid JSON"
+              fail=1
+            fi
+          done < <(find "${{ matrix.pack }}/data" -name '*.json' -print0 2>/dev/null || true)
+          exit "$fail"
+
+  # [10] mecha lints code inside each pack but never compares packs to each other. This job checks
+  # the one cross-pack contract that matters here: the demo's pack.mcmeta must declare the same
+  # format range as the core pack, otherwise the demo can silently claim support for a version the
+  # core datapack doesn't (or vice versa).
+  pack-metadata:
+    name: pack.mcmeta consistency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compare min_format / max_format across packs
+        run: |
+          set -euo pipefail
+          root_min=$(python3 -c "import json; print(json.load(open('pack.mcmeta'))['pack']['min_format'])")
+          root_max=$(python3 -c "import json; print(json.load(open('pack.mcmeta'))['pack']['max_format'])")
+          demo_min=$(python3 -c "import json; print(json.load(open('examples/guikit-demo/pack.mcmeta'))['pack']['min_format'])")
+          demo_max=$(python3 -c "import json; print(json.load(open('examples/guikit-demo/pack.mcmeta'))['pack']['max_format'])")
+          echo "root: min_format=$root_min max_format=$root_max"
+          echo "demo: min_format=$demo_min max_format=$demo_max"
+          if [ "$root_min" != "$demo_min" ] || [ "$root_max" != "$demo_max" ]; then
+            echo "::error::pack.mcmeta format range mismatch between root and examples/guikit-demo"
+            exit 1
+          fi
+
   build:
-    needs: lint
+    needs: [ lint, pack-metadata ]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -105,6 +148,19 @@ jobs:
               echo "| \`$z\` | $(stat -c%s "$z") | $(unzip -Z1 "$z" | wc -l) |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # [21] the git-archive step is expected to be a straight copy of tracked files, but this
+      # confirms the zip mecha would see is still a well-formed pack after packaging (catches a
+      # broken archive step, not a code issue lint would already have caught).
+      - name: Re-validate packaged zips with mecha
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user mecha
+          rm -rf verify_core verify_demo
+          unzip -q datapack.zip -d verify_core
+          unzip -q guikit-demo.zip -d verify_demo
+          python3 -m mecha verify_core
+          python3 -m mecha verify_demo
 
       # [19]
       - name: Checksums
