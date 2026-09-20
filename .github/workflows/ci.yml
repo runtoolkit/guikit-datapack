@@ -368,18 +368,20 @@ jobs:
           distribution: temurin
           java-version: ${{ steps.meta.outputs.java }}
 
-      # continue-on-error so the issue step still runs; the job is failed explicitly at the end
+      # No continue-on-error: it turned this step green while the job still failed, hiding the real cause in a
+      # different step. The step now fails visibly; the steps below use always() so findings / issues still run.
       - name: Download client.jar, dump the command tree, validate, scan
         id: test
-        continue-on-error: true
         run: python3 scripts/ci/mc_test.py test
 
-      - name: Upload findings
+      - name: Upload findings and generator log
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: mc-test-findings
-          path: mc-test/findings.json
+          path: |
+            mc-test/findings.json
+            mc-test/generator.log
           if-no-files-found: ignore
           retention-days: 14
 
@@ -393,12 +395,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/mc_test.py issues --findings mc-test/findings.json
-
-      - name: Fail the job if the test failed
-        if: steps.test.outcome == 'failure'
-        run: |
-          echo "::error title=mc-test::mc-test found errors, see the annotations and the job summary"
-          exit 1
 
   # [33] the zips must not depend on the clock or the runner. This guard found a real one: `git archive HEAD:examples/guikit-demo`
   # stamped the current time into guikit-demo.zip, so that zip was never reproducible (fixed with --mtime in `build` too)
