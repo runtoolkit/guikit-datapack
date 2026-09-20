@@ -23,16 +23,16 @@ scoreboard objectives add demo.rating dummy
 
 # --- button definitions (formerly the separate cmd-demo pack, now page 2 of demo:main).
 # plain command
-data modify storage guikit:btn defs."demo:apple" set value {cmd:"give @s minecraft:apple 1", timer:1200}
-data modify storage guikit:btn defs."demo:coin" set value {cmd:"scoreboard players add @s demo.coins 1", timer:1200}
+data modify storage guikit:btn defs."demo:apple" set value {cmd:"give @s minecraft:apple 1"}
+data modify storage guikit:btn defs."demo:coin" set value {cmd:"scoreboard players add @s demo.coins 1"}
 # score condition, several commands through a function
-data modify storage guikit:btn defs."demo:sword" set value {cmd:"function demo:internal/buy_sword", timer:1200, deny:"You need 5 coins.", cond:{type:"score", obj:"demo.coins", min:5}}
+data modify storage guikit:btn defs."demo:sword" set value {cmd:"function demo:internal/buy_sword", deny:"You need 5 coins.", cond:{type:"score", obj:"demo.coins", min:5}}
 # tag condition, JSON inside the command -> single-quoted SNBT string
-data modify storage guikit:btn defs."demo:vip" set value {cmd:'tellraw @s {"text":"Welcome, VIP!","color":"gold"}', timer:1200, deny:"VIP only. Try: /tag @s add vip", cond:{type:"tag", tag:"vip"}, locked_item:"minecraft:iron_bars"}
+data modify storage guikit:btn defs."demo:vip" set value {cmd:'tellraw @s {"text":"Welcome, VIP!","color":"gold"}', deny:"VIP only. Try: /tag @s add vip", cond:{type:"tag", tag:"vip"}, locked_item:"minecraft:iron_bars"}
 # XP level condition (cond type "level", see README "Conditions")
-data modify storage guikit:btn defs."demo:lvl" set value {cmd:'tellraw @s {"text":"Level 5 reached!","color":"green"}', timer:1200, deny:"You need XP level 5.", cond:{type:"level", min:5}, locked_item:"minecraft:iron_bars"}
+data modify storage guikit:btn defs."demo:lvl" set value {cmd:'tellraw @s {"text":"Level 5 reached!","color":"green"}', deny:"You need XP level 5.", cond:{type:"level", min:5}, locked_item:"minecraft:iron_bars"}
 # composite condition (all of ...) + a score cost: charged only when every element passes, before cmd runs
-data modify storage guikit:btn defs."demo:combo" set value {cmd:"give @s minecraft:diamond 1", timer:1200, cost:{obj:"demo.coins", amount:3}, poor:"You need 3 coins.", deny:"VIP with XP level 1+ only.", cond:{type:"all", of:[{type:"tag", tag:"vip"}, {type:"level", min:1}]}, locked_item:"minecraft:iron_bars"}
+data modify storage guikit:btn defs."demo:combo" set value {cmd:"give @s minecraft:diamond 1", cost:{obj:"demo.coins", amount:3}, poor:"You need 3 coins.", deny:"VIP with XP level 1+ only.", cond:{type:"all", of:[{type:"tag", tag:"vip"}, {type:"level", min:1}]}, locked_item:"minecraft:iron_bars"}
 # link
 data modify storage guikit:btn defs."demo:link" set value {url:"https://github.com/runtoolkit/guikit-datapack", close:1b}
 

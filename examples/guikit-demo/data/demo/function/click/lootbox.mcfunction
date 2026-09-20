@@ -1,5 +1,3 @@
-# every click keeps the menu alive
-scoreboard players set @s guikit.timer 1200
 
 # roll 0..99 -> #roll guikit.tmp
 function guikit:internal/clear_in
