@@ -10,14 +10,14 @@
 # Draws `width` clickable cells starting at `slot`, filled up to the live `obj` score (same
 # scaling as widget/progress: filled = obj * width / max). Cell i's clickable id is "<id>_i" --
 # click it with widget/meter_probe (ONE registration per meter, not per cell).
-function guikit:internal/clear_mtr
+function guikit:internal/clear/mtr
 $data modify storage guikit:mtr cur set from storage guikit:mtr defs."$(id)"
 execute unless data storage guikit:mtr cur run return 0
 data modify storage guikit:mtr obj set from storage guikit:mtr cur.obj
 data modify storage guikit:mtr max set from storage guikit:mtr cur.max
 data modify storage guikit:mtr width set from storage guikit:mtr cur.width
 
-function guikit:internal/progress_calc with storage guikit:mtr
+function guikit:internal/progress/calc with storage guikit:mtr
 
 data modify storage guikit:pg cur set value 0
 data modify storage guikit:pg slot set from storage guikit:w slot
@@ -26,4 +26,4 @@ data modify storage guikit:pg full set from storage guikit:mtr cur.full
 data modify storage guikit:pg empty set from storage guikit:mtr cur.empty
 data modify storage guikit:pg id set from storage guikit:w id
 data modify storage guikit:pg name set from storage guikit:mtr cur.name
-function guikit:internal/meter_loop
+function guikit:internal/meter/loop

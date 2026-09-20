@@ -2,7 +2,7 @@
 execute unless score #ci guikit.tmp < #cn guikit.tmp run return 0
 execute store result storage guikit:cnd i int 1 run scoreboard players get #ci guikit.tmp
 function guikit:cond/comp_pick with storage guikit:cnd
-function guikit:internal/clear_cond
+function guikit:internal/clear/cond
 function guikit:cond/load_cur
 scoreboard players set #cond guikit.tmp 0
 execute unless data storage guikit:cond {type:"all"} unless data storage guikit:cond {type:"any"} run function guikit:cond/check

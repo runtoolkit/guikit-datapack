@@ -1,6 +1,6 @@
 
 # roll 0..99 -> #roll guikit.tmp
-function guikit:internal/clear_in
+function guikit:internal/clear/in
 data merge storage guikit:in {max:99}
 function guikit:widget/roll
 

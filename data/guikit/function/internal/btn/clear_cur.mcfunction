@@ -1,2 +1,2 @@
-# guikit :: internal/clear_btn_cur
+# guikit :: internal/btn/clear_cur
 data remove storage guikit:btn cur

@@ -11,6 +11,8 @@ scoreboard players set #found guikit.tmp 0
 execute as @e[type=#guikit:container,tag=guikit.cart] if score @s guikit.uid = #uid guikit.tmp run function guikit:internal/follow
 execute if score #found guikit.tmp matches 0 run return run function guikit:api/close
 
+execute as @e[type=#guikit:container,tag=guikit.cart] if score @s guikit.uid = #uid guikit.tmp run function guikit:internal/sweep/foreign_cart
+
 # click detection: a GUI item in the inventory == the player left-clicked it.
 # `clear ... 0` only COUNTS. Everything below is gated on that count, so a tick with no
 # GUI item in the inventory never reaches a destructive clear.

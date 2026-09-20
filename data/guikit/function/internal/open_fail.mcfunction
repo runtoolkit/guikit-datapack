@@ -3,11 +3,11 @@
 # entity type tag #guikit:container (then the cart could never be bound to its owner and would
 # live forever). Remove it and roll the half-opened state back.
 execute store result storage guikit:ctx uid int 1 run scoreboard players get @s guikit.uid
-function guikit:internal/cont_unbind with storage guikit:ctx
+function guikit:internal/summon/unbind with storage guikit:ctx
 kill @e[tag=guikit.new,distance=..1]
 scoreboard players reset @s guikit.uid
 scoreboard players reset @s guikit.slots
-function guikit:internal/clear_tmp
+function guikit:internal/clear/tmp
 tellraw @s [{"text":"[guikit] ","color":"gray"},{"text":"could not open the menu: its container entity was not created or is not in #guikit:container","color":"red"}]
 scoreboard players set #ok guikit.const 0
 return 0

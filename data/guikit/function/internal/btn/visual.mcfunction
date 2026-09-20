@@ -3,7 +3,7 @@
 data remove storage guikit:btn cur
 $data modify storage guikit:btn cur set from storage guikit:btn defs."$(id)"
 execute unless data storage guikit:btn cur.cond unless data storage guikit:btn cur.cost run return 0
-function guikit:internal/btn_gate
+function guikit:internal/btn/gate
 execute if score #cond guikit.tmp matches 1 run return 0
 data modify storage guikit:w item set value "minecraft:barrier"
 execute if data storage guikit:btn cur.locked_item run data modify storage guikit:w item set from storage guikit:btn cur.locked_item

@@ -13,19 +13,19 @@ data remove storage guikit:btn cur
 $data modify storage guikit:btn cur set from storage guikit:btn defs."$(id)"
 execute unless data storage guikit:btn cur run return 0
 
-function guikit:internal/btn_cond
-execute if score #cond guikit.tmp matches 0 run return run function guikit:internal/btn_deny
+function guikit:internal/btn/cond
+execute if score #cond guikit.tmp matches 0 run return run function guikit:internal/btn/deny
 
 # cost: charged only now (cond passed), before the command runs
 scoreboard players set #paid guikit.tmp 1
-execute if data storage guikit:btn cur.cost run function guikit:internal/btn_pay
-execute if score #paid guikit.tmp matches 0 run return run function guikit:internal/btn_poor
+execute if data storage guikit:btn cur.cost run function guikit:internal/btn/pay
+execute if score #paid guikit.tmp matches 0 run return run function guikit:internal/btn/poor
 
 # decide now: the command may overwrite guikit:btn cur (e.g. by running another button)
 execute store success score #btn_close guikit.tmp if data storage guikit:btn cur{close:1b}
-execute if data storage guikit:btn cur.cmd run function guikit:internal/btn_cmd with storage guikit:btn cur
-execute if data storage guikit:btn cur.url run function guikit:internal/btn_url with storage guikit:btn cur
+execute if data storage guikit:btn cur.cmd run function guikit:internal/btn/cmd with storage guikit:btn cur
+execute if data storage guikit:btn cur.url run function guikit:internal/btn/url with storage guikit:btn cur
 execute if score #btn_close guikit.tmp matches 1 if score @s guikit.uid matches 1.. run function guikit:api/close
 
 # transient: nothing may leak into the next click
-function guikit:internal/clear_btn_cur
+function guikit:internal/btn/clear_cur
