@@ -1,0 +1,20 @@
+{
+  "criteria": {
+    "interact_cart": {
+      "trigger": "minecraft:player_interacted_with_entity",
+      "conditions": {
+        "entity": {
+          "type": "minecraft:entity_properties",
+          "entity": "this",
+          "predicate": {
+            "entity_type": "#guikit:container",
+            "nbt": "{Tags:[\"guikit.cart\"]}"
+          }
+        }
+      }
+    }
+  },
+  "rewards": {
+    "function": "guikit:internal/reset_cd"
+  }
+}

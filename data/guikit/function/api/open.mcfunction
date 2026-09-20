@@ -34,6 +34,8 @@ tag @e[type=#guikit:container,tag=guikit.new,distance=..1] remove guikit.new
 scoreboard players set @s guikit.drop 0
 execute store result score @s guikit.page run data get storage guikit:in page
 execute store result score @s guikit.timer run data get storage guikit:in timer
+# remembered for internal/reset_cd (advancement guikit:interact_cart)
+scoreboard players operation @s guikit.tmax = @s guikit.timer
 data modify storage guikit:ctx menu set from storage guikit:in menu
 function guikit:internal/set_menu_tag with storage guikit:ctx
 
