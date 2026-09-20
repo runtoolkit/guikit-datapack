@@ -1,0 +1,20 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "mecha",
+      "pattern": [
+        {
+          "regexp": "^(ERROR|WARNING)\\s+\\|\\s+mecha\\s+(.+)$",
+          "severity": 1,
+          "message": 2
+        },
+        {
+          "regexp": "^\\s+\\|\\s+(\\S+):(\\d+):(\\d+)\\s*$",
+          "file": 1,
+          "line": 2,
+          "column": 3
+        }
+      ]
+    }
+  ]
+}

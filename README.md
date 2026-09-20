@@ -93,6 +93,20 @@ data modify storage guikit:reg menus."ns:shop" set value {alias:"ns_shop", conta
   `guikit.styled` at summon and filled by `widget/pad_cart_dyn` from the definition kept per owner uid
   (`guikit:cont bound.u<uid>`, dropped again by `api/close`).
 
+## Menu timeout (`timer`)
+`api/open` takes `timer` (ticks, default 900) in `guikit:in`. `guikit.timer` counts down every tick and closes the
+menu at 0. It is **not** reset by clicking widgets (button `timer:` keys and per-click `scoreboard ... guikit.timer`
+resets are gone). It is restarted when the player **interacts with (right-clicks) the cart**:
+
+- advancement `guikit:interact_cart` (trigger `minecraft:player_interacted_with_entity`, entity in
+  `#guikit:container` with the tag `guikit.cart`) -> reward function `guikit:internal/reset_cd`
+- `reset_cd` revokes the advancement again (it is granted only once) and sets `guikit.timer` back to the value the
+  menu was opened with (`guikit.tmax`, set by `api/open`, dropped by `api/close`). The name says `cd`, but it is the
+  menu countdown, not the cooldown scoreboard `guikit.cd`.
+- A menu that is used for a long time without re-opening the screen must be opened with a large `timer`.
+- The advancement JSON uses the 26.3 loot-condition form: `type` is mandatory, a single condition object (a list of
+  conditions is no longer equivalent to `all_of`), and the entity type check is the predicate's `entity_type`.
+
 ## Widget helpers (`guikit:widget/*`)
 `draw` `pad` `probe` `toggle` `counter` `cycle` `progress` `roll` `goto_page` `cooldown_start` `pay_item` `pay_score` `say`
 `button` `button_probe` `radio` `meter_draw` `meter_probe` `sound` (see below)
@@ -140,7 +154,7 @@ Three parts, each one line or one pair of lines:
 
 1. **Definition**, in your `#guikit:register` listener (rebuilt on every reload):
    ```mcfunction
-   data modify storage guikit:btn defs."ns:buy" set value {cmd:"function ns:buy", timer:1200, cond:{type:"score", obj:"coins", min:5}, deny:"You need 5 coins."}
+   data modify storage guikit:btn defs."ns:buy" set value {cmd:"function ns:buy", cond:{type:"score", obj:"coins", min:5}, deny:"You need 5 coins."}
    ```
 2. **Draw**, in `#guikit:fill` (same keys as `widget/draw` minus `type`; call `clear_w` first):
    ```mcfunction
@@ -164,7 +178,6 @@ Definition keys:
 | `cost` | `{obj:"coins", amount:5}` (score) or `{item:"minecraft:diamond", count:3}` (item, `count` defaults to 1). Charged after `cond` passed and before `cmd` / `url`; not enough -> `poor` message, nothing runs, nothing is taken |
 | `poor` | message when the cost cannot be paid, default `You can't afford that.` (no double quotes) |
 | `close` | `1b` = close the menu after the command |
-| `timer` | reset the menu timeout to N ticks on a successful click |
 | `locked_item` | what is drawn while `cond` fails **or the cost is not affordable** (default `minecraft:barrier`). Cosmetic: the click re-checks both |
 
 Notes:
@@ -257,6 +270,33 @@ execute unless function guikit:widget/cooldown_start run function guikit:interna
 ```
 `cd_notify` reads `@s guikit.cd` directly and prints `[GUI] Wait Ns.` to that player. Not used by the demo.
 
+## CI (`.github/workflows/ci.yml`)
+Runs on push / PR to `main`, weekly (Monday) and by hand. `lint` (mecha on the root pack **and** `examples/guikit-demo`,
+errors annotated inline via `.github/ci/mecha-matcher.json`, JSON syntax), `pack-metadata` and `checks` (`scripts/ci/check_pack.py`) must all pass before `build` packages the datapacks;
+`publish` (push to `main`, or a manual run with `publish` ticked) attaches them to a `build-N` release.
+
+Run the same checks locally: `pip install mecha && python scripts/ci/check_pack.py` (one check: `python scripts/ci/check_pack.py refs`).
+mecha is pinned in the workflow (`MECHA_VERSION`). The workflow uses the runner's own Python and does not use
+`actions/setup-python` with `cache: pip`: that action insists on a `requirements.txt` / `pyproject.toml` for its cache key and
+fails without one, and this repo has neither.
+
+| check | what it catches (errors fail the run, warnings only annotate) |
+| --- | --- |
+| `json` | invalid JSON in advancements, tags, `pack.mcmeta` |
+| `pitfalls` | things 26.3 rejected but mecha accepted: `path {..}` with a space, quoted-JSON `custom_name`, root `data modify storage X {}`; also BOM, CRLF, merge markers, non-lowercase file names; old-style quoted name/lore values (warning) |
+| `macros` | every `$` macro line is expanded with sample values and re-linted (mecha skips them). Add new variable names to `MACRO_SAMPLES` |
+| `refs` | `function ns:x` / `function #ns:tag` / tag values / advancement reward functions that do not exist |
+| `objectives` | a scoreboard objective read or written but never created by `scoreboard objectives add` |
+| `unused` | functions nothing refers to (warning); the public API prefixes are listed in `PUBLIC` |
+| `mcmeta` | missing description, `min_format > max_format`, different format ranges across packs |
+
+Release assets: `datapack.zip` (core, same name as before), `guikit-demo.zip` and `SHA256SUMS.txt`. Both zips are built with
+`git archive`, so they are reproducible and contain only tracked files; `examples/`, `scripts/` and `.github/` never end up
+in the core zip. Old `build-*` releases are only pruned when the repository variable `PRUNE_KEEP` (or the manual input
+`prune_keep`) is a number above 0. The runner is pinned to `ubuntu-24.04` (`ubuntu-latest` moves to Ubuntu 26 from
+19 Oct 2026); change it deliberately after a green run on the new image. Pushing workflow files needs a token with the
+`workflow` scope.
+
 ## Validation status
 - **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` (now in `guikit-demo`) while
   **Minecraft 26.3 rejected it** (`Whilst parsing command on line 5 ... at position 48`, right before `run`).
@@ -292,6 +332,10 @@ execute unless function guikit:widget/cooldown_start run function guikit:interna
   expanded with sample values and linted). Not checked in a real client: the `comp_step` recursion, the `cnd` scratch
   storage, `cost` charging order (cond -> cost -> cmd), whether a boat can be ridden while the menu is open, and
   whether the `minecraft.custom:minecraft.drop` statistic reacts to Q-dropping a widget out of the cart.
+- **Menu timeout via advancement (`guikit:interact_cart`, `internal/reset_cd`, `guikit.tmax`) is new and untested.**
+  Not checked in a real 26.3 client: that the advancement JSON parses (written after the 26.3 release notes and a
+  working snippet, not run), that right-clicking the cart fires the trigger, that `entity_type` accepts the tag
+  `#guikit:container`, and that the revoke in `reset_cd` re-arms it. Check `latest.log` for an advancement parse error.
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
 - **The container registry (`internal/containers_builtin`, `summon`, `pad_cart_dyn`, `open_fail`), the `radio`/`meter`
