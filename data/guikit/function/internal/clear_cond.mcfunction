@@ -8,6 +8,7 @@ data remove storage guikit:cond min
 data remove storage guikit:cond mode
 data remove storage guikit:cond not
 data remove storage guikit:cond obj
+data remove storage guikit:cond of
 data remove storage guikit:cond pred
 data remove storage guikit:cond tag
 data remove storage guikit:cond type

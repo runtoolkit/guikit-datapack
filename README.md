@@ -53,6 +53,8 @@ storage `guikit:reg containers.<name>`. If the name is not registered it is take
 | `trapped_chest` | `chest_minecart` | 27 | red | Trapped Chest |
 | `shulker_box` | `chest_minecart` | 27 | magenta | Shulker Box |
 | `copper_chest` | `chest_minecart` | 27 | orange | Copper Chest |
+| `oak_chest_boat`, `spruce_...`, `birch_...`, `jungle_...`, `acacia_...`, `dark_oak_...`, `mangrove_...`, `cherry_...` `_chest_boat`, `bamboo_chest_raft` | the same id | 27 | gray | |
+| `donkey`, `mule` | the same id | 15 | gray | registered, **not usable yet** (see below) |
 
 The themed ones are cosmetic: Minecraft has no ender chest / barrel **entity**, and the framework needs
 `/summon` + `item replace entity @s container.N`, so they are a `chest_minecart` with a different pad and title.
@@ -71,6 +73,13 @@ data modify storage guikit:reg menus."ns:shop" set value {alias:"ns_shop", conta
 | `pad` | item id `widget/pad` puts in every slot | `minecraft:gray_stained_glass_pane` |
 | `title` | optional **SNBT text component** (`{text:"Shop"}`), becomes the container title | none |
 
+- **Chest boats / rafts** are in `#guikit:container`, but only minecarts follow their owner (`internal/follow`
+  teleports `chest_minecart` and `hopper_minecart`). A boat stays where it was summoned, so the owner has to ride it:
+  `ride @s mount <the owner's cart>` right after `api/open` (see `demo:click/open_chest_boat`; match the cart by
+  `guikit.uid`, the nearest cart can belong to another player).
+- **`donkey` / `mule`** are registered but deliberately not in `#guikit:container` (their inventory slot numbering
+  under `container.N` is unconfirmed), so opening such a menu is refused by `internal/open_fail`. There is no `offset`
+  key.
 - Registry names are plain keys (`shop`, `ns_shop`); quote the path if you use a colon: `containers."ns:shop"`.
 - `title` must be a compound, not `'{"text":"Shop"}'`: in 26.3 a quoted string is a plain string and the title
   would show the JSON itself.
@@ -108,10 +117,22 @@ Runs `as` the player. Result: `#cond guikit.tmp` = 1 / 0 (also the return value)
 | `advancement` | `adv` | e.g. `minecraft:story/root` |
 | `predicate` | `pred` | any predicate, so anything not listed can still be a condition |
 | `level` | optional `min`, `max` | XP **level** (the number above the hotbar, not a scoreboard); with neither key any level passes. Not verified in a live client |
+| `all` | `of:[{...}, {...}]` | passes when **every** element passes (empty list passes); stops at the first failure |
+| `any` | `of:[{...}, {...}]` | passes when **at least one** element passes (empty list fails); stops at the first pass |
 
-`not:1b` inverts. An unknown `type` or a missing key **fails** (result 0). Every type is its own small function
+```mcfunction
+data merge storage guikit:cond {type:"all", of:[{type:"tag", tag:"vip"}, {type:"level", min:5}, {type:"tag", tag:"banned", not:1b}]}
+function guikit:cond/check
+```
+
+`all`/`any` are one level deep: an element must be a plain type, an element that is itself `all`/`any` is not
+evaluated and counts as **failed**. Every element can carry its own `not`, and so can the `all`/`any` itself.
+A missing `of` fails (`not` is not applied to it).
+
+`not:1b` inverts. An unknown `type` or a missing key **fails** (result 0), except that a `not:1b` next to an
+unknown type / missing key flips that 0 to 1 (known quirk of the leaf types; the `all`/`any` path does not have it). Every type is its own small function
 (`guikit:cond/t_*`); `min`/`max` are two open-ended ranges, never a closed `A..B`.
-New key -> add it to `guikit:internal/clear_cond` (and to `guikit:internal/btn_cond` if buttons should support it).
+New key -> add it to `guikit:internal/clear_cond` and to `guikit:cond/load_cur` (that copy list is shared by buttons and by `all`/`any`).
 
 ## Command buttons (`guikit:widget/button`)
 
@@ -140,17 +161,23 @@ Definition keys:
 | `url` | prints a clickable `open_url` link in chat instead (combine with `close:1b`, chat is hidden behind the menu) |
 | `cond` | any condition from the table above (same keys, incl. `not`). Failing: `deny` message, nothing runs |
 | `deny` | message when `cond` fails, default `Not available.` (no double quotes in it) |
+| `cost` | `{obj:"coins", amount:5}` (score) or `{item:"minecraft:diamond", count:3}` (item, `count` defaults to 1). Charged after `cond` passed and before `cmd` / `url`; not enough -> `poor` message, nothing runs, nothing is taken |
+| `poor` | message when the cost cannot be paid, default `You can't afford that.` (no double quotes) |
 | `close` | `1b` = close the menu after the command |
 | `timer` | reset the menu timeout to N ticks on a successful click |
-| `locked_item` | what is drawn while `cond` fails (default `minecraft:barrier`). Cosmetic: the click re-checks `cond` |
+| `locked_item` | what is drawn while `cond` fails **or the cost is not affordable** (default `minecraft:barrier`). Cosmetic: the click re-checks both |
 
 Notes:
 - `cmd` is macro-expanded raw. If it contains double quotes, write it as a single-quoted SNBT string:
   `cmd:'tellraw @s {"text":"hi"}'`.
 - `cmd` runs with the permission level datapack functions get (`function-permission-level`, default 2), not the
   player's. **`cmd` / `url` must come from your menu code, never from player input** (command injection).
+- An item `cost` first removes the widget items from the inventory (the clicked widget is still there while the
+  click is handled), so a button that costs its own item type neither counts nor takes the widget instead of your
+  items. The look check (`locked_item`) uses the same rule as the `item_count` condition. Score cost = `pay_score`,
+  item cost = `pay_item`.
 - A working example is on page 2 of `examples/guikit-demo` (`demo:apple`, `demo:coin`,
-  `demo:sword`, `demo:vip`, `demo:link`). `/function demo:open`, then navigate to page 2.
+  `demo:sword`, `demo:vip`, `demo:lvl`, `demo:combo` = `all` condition + score cost, `demo:link`). `/function demo:open`, then navigate to page 2.
 
 ## Widget: single-select (`guikit:widget/radio`)
 Generalizes `toggle` from a bool to N states: each option in the group calls it with its own
@@ -260,6 +287,11 @@ execute unless function guikit:widget/cooldown_start run function guikit:interna
   client: `experience query @s levels` storing into a score, `playsound ... ui @s` argument order, the
   `execute unless function ...` form used in the `cd_notify` example, and the `on_close` firing on
   menu switch described above.
+- **`all` / `any` conditions, button `cost` / `poor`, the `guikit.drop` detection branch in `tick_player`, chest boats /
+  rafts and the hopper `follow` are new and untested beyond `mecha .`** (all 83 macro lines in the pack were also
+  expanded with sample values and linted). Not checked in a real client: the `comp_step` recursion, the `cnd` scratch
+  storage, `cost` charging order (cond -> cost -> cmd), whether a boat can be ridden while the menu is open, and
+  whether the `minecraft.custom:minecraft.drop` statistic reacts to Q-dropping a widget out of the cart.
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
 - **The container registry (`internal/containers_builtin`, `summon`, `pad_cart_dyn`, `open_fail`), the `radio`/`meter`

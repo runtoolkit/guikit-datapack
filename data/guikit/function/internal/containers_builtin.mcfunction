@@ -4,14 +4,12 @@
 #   slots   inventory size (27 chest_minecart/chest_boat, 5 hopper_minecart, 15 donkey/mule) default 27
 #   pad     item id used by widget/pad to fill every slot                    default minecraft:gray_stained_glass_pane
 #   title   optional SNBT text component shown as the container title, e.g. {text:"Barrel"}
-#   offset  first real inventory Slot index for `item replace entity @s container.N`;
-#           chest_minecart/chest_boat/hopper_minecart are 0. NOT set below for donkey/mule:
-#           their Items[] is reported (minecraft.wiki) as Slot 2..16 (saddle=0, chest-flag=1),
-#           but the container.N selector's mapping onto that offset is UNCONFIRMED against a
-#           live 26.3 client -- see README "Validation status". Until tested, donkey/mule stay
-#           OUT of data/guikit/tags/entity_type/container.json, so open() can register them by
-#           name but internal/open_check should reject them (see open_check TODO) rather than
-#           summon something the framework can't draw into correctly.
+#   (there is NO `offset` key: every entity used so far addresses its slots as container.0 .. container.slots-1.)
+# donkey/mule are registered for later but are deliberately NOT in data/guikit/tags/entity_type/container.json:
+# their Items[] is reported (minecraft.wiki) as Slot 2..16 (saddle=0, chest-flag=1) and how `container.N` maps
+# onto that is unconfirmed against a live 26.3 client (README "Validation status"). Because they are outside the
+# tag, api/open refuses them through internal/open_fail. Supporting them would need an offset in pad_slot and
+# widget/draw_on_cart.
 # Menu packs add or replace entries from #guikit:register (this runs first, so they win).
 # Every "themed" chest/barrel/etc preset is still a chest_minecart underneath: only entities can
 # be summoned and filled with `item replace entity`, and Minecraft has no ender chest / barrel
@@ -40,8 +38,7 @@ data modify storage guikit:reg containers.mangrove_chest_boat set value {entity:
 data modify storage guikit:reg containers.cherry_chest_boat set value {entity:"cherry_chest_boat", slots:27, pad:"minecraft:gray_stained_glass_pane"}
 data modify storage guikit:reg containers.bamboo_chest_raft set value {entity:"bamboo_chest_raft", slots:27, pad:"minecraft:gray_stained_glass_pane"}
 
-# donkey/mule: registered for forward-compat but see the offset TODO above -- deliberately not
-# in #guikit:container yet, so api/open must refuse them (internal/open_check TODO) until the
-# container.N offset is confirmed live.
+# donkey/mule: registered for later, see the note above: not in #guikit:container, so api/open
+# refuses them (internal/open_fail) until the container.N mapping is confirmed live.
 data modify storage guikit:reg containers.donkey set value {entity:"donkey", slots:15, pad:"minecraft:gray_stained_glass_pane"}
 data modify storage guikit:reg containers.mule set value {entity:"mule", slots:15, pad:"minecraft:gray_stained_glass_pane"}

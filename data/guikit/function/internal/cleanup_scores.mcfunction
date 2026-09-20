@@ -24,5 +24,11 @@ scoreboard players reset #mhit guikit.tmp
 scoreboard players reset #lvl guikit.tmp
 scoreboard players reset #cdleft guikit.tmp
 scoreboard players reset #pi guikit.tmp
+# composite conditions (cond/comp_run, comp_step)
+scoreboard players reset #cmode guikit.tmp
+scoreboard players reset #cacc guikit.tmp
+scoreboard players reset #cn guikit.tmp
+scoreboard players reset #ci guikit.tmp
+scoreboard players reset #cnot guikit.tmp
 scoreboard players reset #cd20 guikit.tmp
 scoreboard players set #ok guikit.const 0
