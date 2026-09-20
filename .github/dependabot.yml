@@ -1,0 +1,13 @@
+# Keeps the pinned GitHub Actions (actions/checkout@v7, upload-artifact, ...) current: one grouped pull request a week.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"

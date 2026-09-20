@@ -14,6 +14,19 @@
 # [22] static checks job (scripts/ci/check_pack.py): 26.3 pitfalls, macro lines, function/tag references,
 #      scoreboard objectives, unused functions, json, pack.mcmeta      [23] mecha errors as inline annotations
 # [24] mecha version pinned (MECHA_VERSION below), still no dependency file needed
+# Independent jobs (no `needs`, nothing else waits for them; any of them can be deleted on its own):
+# [25] hygiene       stray binaries, big files, secrets, CRLF, whitespace, header comments
+# [26] docs          README mentions of functions that no longer exist, public functions missing from the README
+# [27] reference     REFERENCE.md artifact generated from the code (functions, objectives, storages, tags)
+# [28] pr-summary    what a pull request changes, in the job summary
+# [29] workflow-lint actionlint (pinned + checksum verified) on the workflow files
+# [30] canary        weekly: newest mecha, and `ubuntu-latest` instead of the pinned image
+# [31] mc-drift      weekly: does a new Minecraft release use a higher data pack format?
+# [32] smoke         opt-in: load the packs into a real vanilla server and read its log
+# [33] reproducible  the zips must come out byte-identical when built twice
+# In the existing jobs: [34] BUILD_INFO.json  [35] "files changed since the previous release" in the release notes
+# [36] strict mode (warnings fail the run) via the `strict` input or the repository variable CHECK_STRICT
+# Repo files that go with this: .gitattributes [38] keeps LF line endings, .github/dependabot.yml [37] bumps actions.
 
 name: CI
 
@@ -36,6 +49,16 @@ on:
         description: "After publishing keep only the newest N build-* releases (0 = keep all)"
         type: number
         default: 0
+      # [36]
+      strict:
+        description: "Strict mode: warnings from the static checks fail the run"
+        type: boolean
+        default: false
+      # [32]
+      mc_version:
+        description: "Minecraft version for the server smoke test (empty = the default below)"
+        type: string
+        default: ""
 
 # [1] read-only by default; only the publish job gets write access
 permissions:
@@ -50,6 +73,8 @@ env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   # [24] bump deliberately (and check the lint job) when a new mecha release should be used
   MECHA_VERSION: "0.101.0"
+  # [32] the version the smoke test starts; keep it in step with `min_format` / `max_format` in pack.mcmeta
+  MC_VERSION: "26.3"
 
 jobs:
   lint:
@@ -134,7 +159,210 @@ jobs:
         run: python3 -m pip install --user "mecha==$MECHA_VERSION"
 
       - name: Run checks
+        env:
+          # [36]
+          CHECK_STRICT: ${{ inputs.strict && '1' || vars.CHECK_STRICT || '0' }}
         run: python3 scripts/ci/check_pack.py
+
+  # [25]
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Repository hygiene
+        env:
+          CHECK_STRICT: ${{ inputs.strict && '1' || vars.CHECK_STRICT || '0' }}
+        run: python3 scripts/ci/check_pack.py hygiene
+
+  # [26]
+  docs:
+    name: docs drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: README versus the code
+        env:
+          CHECK_STRICT: ${{ inputs.strict && '1' || vars.CHECK_STRICT || '0' }}
+        run: python3 scripts/ci/check_pack.py docs
+
+  # [27] a generated overview of what the pack defines, downloadable from the run
+  reference:
+    name: reference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate REFERENCE.md
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pack.py reference --out REFERENCE.md
+          sed -n '1,/^## Functions/p' REFERENCE.md | head -n -1 >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reference
+        uses: actions/upload-artifact@v7
+        with:
+          name: reference
+          path: REFERENCE.md
+          if-no-files-found: error
+          retention-days: 14
+
+  # [28] pull requests only: needs the base commit, so the whole history is fetched
+  pr-summary:
+    name: PR summary
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Summarise the changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/ci/check_pack.py pr-summary
+
+  # [29] the workflow files themselves; the binary is pinned and verified against its published checksum
+  workflow-lint:
+    name: workflow lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
+          ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+        run: |
+          set -euo pipefail
+          curl -sSfL -o actionlint.tgz "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tgz" | sha256sum -c -
+          tar -xzf actionlint.tgz actionlint
+          ./actionlint -color
+
+  # [30] weekly / manual only, so a red canary never blocks a pull request
+  canary:
+    name: canary (${{ matrix.name }})
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: newest mecha
+            runner: ubuntu-24.04
+            mecha: ""
+          - name: ubuntu-latest
+            runner: ubuntu-latest
+            mecha: "0.101.0"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install mecha
+        env:
+          PIN: ${{ matrix.mecha }}
+        run: python3 -m pip install --user "mecha${PIN:+==$PIN}"
+
+      - name: Lint every pack and run the checks
+        run: |
+          set -euo pipefail
+          python3 -m mecha --version || true
+          python3 -m mecha .
+          python3 -m mecha examples/guikit-demo
+          python3 scripts/ci/check_pack.py
+
+  # [31] advisory: warnings only, unless the repository variable DRIFT_FAIL is 1
+  mc-drift:
+    name: Minecraft drift
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compare data pack formats
+        env:
+          DRIFT_FAIL: ${{ vars.DRIFT_FAIL }}
+          MC_VERSION: ${{ inputs.mc_version || env.MC_VERSION }}
+        run: python3 scripts/ci/mc_drift.py
+
+  # [32] opt-in on pull requests / pushes (repository variable SMOKE_TEST=1), always on weekly and manual runs.
+  # Nothing waits for it: build and publish do not depend on this job.
+  smoke:
+    name: server smoke test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || vars.SMOKE_TEST == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MC_VERSION: ${{ inputs.mc_version || '26.3' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Which Java does this Minecraft version need?
+        id: meta
+        run: python3 scripts/ci/smoke_server.py meta
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ steps.meta.outputs.java }}
+
+      - name: Start the server, reload, check the log
+        run: python3 scripts/ci/smoke_server.py run
+
+      - name: Upload the server log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-log
+          path: smoke-server/smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # [33] the zips must not depend on the clock or the runner. This guard found a real one: `git archive HEAD:examples/guikit-demo`
+  # stamped the current time into guikit-demo.zip, so that zip was never reproducible (fixed with --mtime in `build` too)
+  reproducible:
+    name: reproducible zips
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build twice and compare
+        run: |
+          set -euo pipefail
+          when=$(git log -1 --format=%cI)
+          build() {
+            git archive --format=zip -9 --mtime="$when" -o "$1/datapack.zip" HEAD pack.mcmeta data LICENSE README.md
+            git archive --format=zip -9 --mtime="$when" -o "$1/guikit-demo.zip" HEAD:examples/guikit-demo
+          }
+          mkdir first second
+          build first
+          sleep 2
+          build second
+          for z in datapack.zip guikit-demo.zip; do
+            if ! cmp "first/$z" "second/$z"; then
+              echo "::error::$z differs between two builds of the same commit"; exit 1
+            fi
+          done
+          sha256sum first/*.zip
 
   build:
     needs: [ lint, pack-metadata, checks ]
@@ -149,8 +377,11 @@ jobs:
       - name: Package datapacks
         run: |
           set -euo pipefail
-          git archive --format=zip -9 -o datapack.zip HEAD pack.mcmeta data LICENSE README.md
-          git archive --format=zip -9 -o guikit-demo.zip HEAD:examples/guikit-demo
+          # --mtime: a tree-ish such as HEAD:examples/guikit-demo has no commit time, so git would stamp the current time
+          # into the zip and every build would differ; pin it to the commit date
+          when=$(git log -1 --format=%cI)
+          git archive --format=zip -9 --mtime="$when" -o datapack.zip HEAD pack.mcmeta data LICENSE README.md
+          git archive --format=zip -9 --mtime="$when" -o guikit-demo.zip HEAD:examples/guikit-demo
 
       # [18] structure and size of what will be released
       - name: Verify archives
@@ -194,6 +425,28 @@ jobs:
       - name: Checksums
         run: sha256sum datapack.zip guikit-demo.zip | tee SHA256SUMS.txt
 
+      # [34] which commit and which tools produced these files (and their hashes), as machine-readable JSON
+      - name: Build info
+        run: |
+          python3 - <<'PY' > BUILD_INFO.json
+          import datetime, hashlib, json, os, subprocess
+          def git(*a):
+              return subprocess.run(["git", *a], capture_output=True, text=True).stdout.strip()
+          def sha(f):
+              return hashlib.sha256(open(f, "rb").read()).hexdigest()
+          print(json.dumps({
+              "commit": git("rev-parse", "HEAD"),
+              "commit_date": git("log", "-1", "--format=%cI"),
+              "ref": os.environ.get("GITHUB_REF"),
+              "run_number": os.environ.get("GITHUB_RUN_NUMBER"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "mecha": os.environ.get("MECHA_VERSION"),
+              "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+              "files": {f: {"bytes": os.path.getsize(f), "sha256": sha(f)} for f in ("datapack.zip", "guikit-demo.zip")},
+          }, indent=2))
+          PY
+          cat BUILD_INFO.json
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -202,6 +455,7 @@ jobs:
             datapack.zip
             guikit-demo.zip
             SHA256SUMS.txt
+            BUILD_INFO.json
           if-no-files-found: error
           retention-days: 14
 
@@ -222,18 +476,56 @@ jobs:
           name: datapack
           path: .
 
-      # [20] release notes generated from the merged PRs / commits, all three files attached
+      # [35] the release body starts with what changed inside datapack.zip since the previous release. The file is
+      # created first and the step that fills it is allowed to fail, so a problem here can never block the release.
+      - name: Prepare release body
+        run: ': > release-body.md'
+
+      - name: Files changed since the previous release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName // empty' 2>/dev/null || true)
+          if [ -z "$prev" ]; then echo "no previous release"; exit 0; fi
+          mkdir -p prev
+          gh release download "$prev" --repo "$GITHUB_REPOSITORY" --pattern datapack.zip --dir prev || { echo "previous release has no datapack.zip"; exit 0; }
+          crc() { unzip -v "$1" | awk 'NF>=8 && $7 ~ /^[0-9a-f]{8}$/ && $8 !~ /\/$/ {print $8, $7}' | LC_ALL=C sort; }
+          crc prev/datapack.zip > prev.crc
+          crc datapack.zip > new.crc
+          added=$(LC_ALL=C comm -13 <(cut -d' ' -f1 prev.crc) <(cut -d' ' -f1 new.crc))
+          removed=$(LC_ALL=C comm -23 <(cut -d' ' -f1 prev.crc) <(cut -d' ' -f1 new.crc))
+          changed=$(LC_ALL=C join prev.crc new.crc | awk '$2 != $3 {print $1}')
+          list() {
+            printf '**%s (%s)**\n\n' "$1" "$(printf '%s\n' "$2" | grep -c .)"
+            printf '%s\n' "$2" | grep . | head -40 | while read -r f; do printf -- '- \x60%s\x60\n' "$f"; done
+            echo
+          }
+          {
+            echo "### Files in datapack.zip compared with \`$prev\`"
+            echo
+            if [ -z "$added$removed$changed" ]; then echo "No file differs."; fi
+            if [ -n "$added" ]; then list "Added" "$added"; fi
+            if [ -n "$changed" ]; then list "Changed" "$changed"; fi
+            if [ -n "$removed" ]; then list "Removed" "$removed"; fi
+          } > release-body.md
+          cat release-body.md
+
+      # [20] release notes generated from the merged PRs / commits, all four files attached
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: build-${{ github.run_number }}
           name: guikit build ${{ github.run_number }}
+          body_path: release-body.md
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
             datapack.zip
             guikit-demo.zip
             SHA256SUMS.txt
+            BUILD_INFO.json
 
       # [20] opt-in: set the repository variable PRUNE_KEEP (or the manual input) to N to keep only the newest N build-* releases
       - name: Prune old build releases
