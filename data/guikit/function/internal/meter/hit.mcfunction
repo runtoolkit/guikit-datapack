@@ -1,5 +1,5 @@
-# guikit :: internal/meter_hit
-# macro: $(id) $(c) $(obj) $(max)     as player   (called by internal/meter_probe_loop)
+# guikit :: internal/meter/hit
+# macro: $(id) $(c) $(obj) $(max)     as player   (called by internal/meter/probe_loop)
 # Non-destructive presence test for cell $(c) of meter $(id) (same trick as widget/probe). On a
 # hit, sets $(obj) to the cell's scaled value using score #mw guikit.tmp (width, set by
 # widget/meter_probe) and marks the menu dirty for redraw.

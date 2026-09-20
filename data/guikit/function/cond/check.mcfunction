@@ -13,15 +13,15 @@
 #                                                      leaf types above (a nested all/any counts as failed)
 # `not:1b` inverts the result. Unknown type / missing key = fails (closed).
 #
-#   function guikit:internal/clear_cond
+#   function guikit:internal/clear/cond
 #   data merge storage guikit:cond {type:"score", obj:"coins", min:10}
 #   function guikit:cond/check
 #   execute if score #cond guikit.tmp matches 1 run ...
 #
 # One small function per type (no big execute chains), same as the rest of the pack.
 scoreboard players set #cond guikit.tmp 0
-execute if data storage guikit:cond {type:"all"} run return run function guikit:cond/t_all
-execute if data storage guikit:cond {type:"any"} run return run function guikit:cond/t_any
+execute if data storage guikit:cond {type:"all"} run function guikit:cond/t_all
+execute if data storage guikit:cond {type:"any"} run function guikit:cond/t_any
 execute if data storage guikit:cond {type:"score"} run function guikit:cond/t_score
 execute if data storage guikit:cond {type:"item_count"} run function guikit:cond/t_item_count
 execute if data storage guikit:cond {type:"tag"} if data storage guikit:cond tag run function guikit:cond/t_tag with storage guikit:cond

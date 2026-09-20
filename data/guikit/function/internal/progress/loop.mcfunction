@@ -7,7 +7,7 @@ data modify storage guikit:pg item set from storage guikit:pg empty
 execute if score #d guikit.tmp matches 1.. run data modify storage guikit:pg item set from storage guikit:pg full
 # slot = base + i
 execute store result storage guikit:pg cell int 1 run scoreboard players get #i guikit.tmp
-function guikit:internal/progress_slot with storage guikit:pg
+function guikit:internal/progress/slot with storage guikit:pg
 scoreboard players add #i guikit.tmp 1
 scoreboard players remove #left guikit.tmp 1
-function guikit:internal/progress_loop
+function guikit:internal/progress/loop

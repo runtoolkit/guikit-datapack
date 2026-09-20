@@ -7,5 +7,5 @@
 # If the definition has a `cond` and it fails right now, the item is swapped for `locked_item`
 # (default minecraft:barrier). The click handler re-checks the condition, so the look is cosmetic only.
 data modify storage guikit:w type set value "button"
-function guikit:internal/btn_visual with storage guikit:w
+function guikit:internal/btn/visual with storage guikit:w
 function guikit:widget/draw

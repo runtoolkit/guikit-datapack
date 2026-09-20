@@ -2,7 +2,7 @@
 # Tells the player how long the cooldown still runs. Call it when widget/cooldown_start
 # returned 0 (before this, a refused click gave the player no feedback at all).
 #
-#   execute unless function guikit:widget/cooldown_start run function guikit:internal/cd_notify
+#   execute unless function guikit:widget/cooldown_start run function guikit:internal/cooldown/notify
 #
 # Do NOT call cooldown_start first and then test `guikit.cd matches 1..`: on success it has just
 # SET the cooldown, so that test is true then too and the player would be told to wait after a

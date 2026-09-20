@@ -1,4 +1,4 @@
-function guikit:internal/clear_in
+function guikit:internal/clear/in
 data merge storage guikit:in {obj:"demo.sound_on"}
 function guikit:widget/toggle
 # guikit:widget/sound (ui category, audible to this player only). Needs `at @s`: the probe runs it that way.

@@ -13,5 +13,5 @@ scoreboard players operation #cond guikit.tmp = #cacc guikit.tmp
 execute if score #cnot guikit.tmp matches 1 run function guikit:cond/negate
 data remove storage guikit:cnd items
 data remove storage guikit:cnd cur
-function guikit:internal/clear_cond
+function guikit:internal/clear/cond
 return run scoreboard players get #cond guikit.tmp

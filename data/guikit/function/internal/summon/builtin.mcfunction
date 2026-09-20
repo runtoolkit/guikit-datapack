@@ -1,4 +1,4 @@
-# guikit :: internal/containers_builtin      (called from core/load BEFORE #guikit:register)
+# guikit :: internal/summon/builtin      (called from core/load BEFORE #guikit:register)
 # Built-in entries of the container registry, storage guikit:reg containers.<name>:
 #   entity  vanilla entity id WITHOUT namespace; it must be in the entity type tag #guikit:container
 #   slots   inventory size (27 chest_minecart/chest_boat, 5 hopper_minecart, 15 donkey/mule) default 27
