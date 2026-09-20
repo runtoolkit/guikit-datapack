@@ -25,10 +25,10 @@ name: guikit fix and restructure
 
 on:
   push:
-    branches: [ main ]
+    branches: [ tickwarden-patch-4 ]
   workflow_dispatch: {}
   pull_request:
-    branches: [ main ]
+    branches: [ tickwarden-patch-4 ]
 
 permissions:
   contents: write
