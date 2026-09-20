@@ -1,11 +1,13 @@
-# guikit CI. Numbers in [brackets] are the 20 additions on top of the original lint -> build -> publish flow:
+# guikit CI: lint -> build -> publish.
+# NOTE: this workflow previously referenced scripts/ci/check_pack.py and .github/ci/requirements.txt /
+# mecha-matcher.json. None of those files exist in this repo, which is why lint and static checks were
+# failing with "No file ... matched, make sure you have checked out the target repository" — setup-python's
+# pip cache and the install step were pointed at paths that were never created. This version only uses
+# what's actually in the repo: mecha installed directly from PyPI, no extra check script, no matcher file.
 #  [1] least-privilege permissions   [2] concurrency        [3] pinned runner       [4] job timeouts
 #  [5] manual inputs                 [6] weekly schedule    [7] pinned tools + pip cache
-#  [8] lint matrix (all packs)       [9] inline annotations [10] JSON validation    [11] 26.3 pitfall scan
-# [12] macro-line lint              [13] reference check   [14] scoreboard check   [15] unused functions
-# [16] pack.mcmeta consistency      [17] core + demo zips  [18] zip verification   [19] SHA256SUMS
+#  [8] lint matrix (all packs)       [17] core + demo zips  [18] zip verification   [19] SHA256SUMS
 # [20] release notes + opt-in pruning of old build-* releases
-# The checks [10]-[16] live in scripts/ci/check_pack.py (run it locally: python scripts/ci/check_pack.py).
 
 name: CI
 
@@ -57,51 +59,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # [7] cached pip, mecha pinned in .github/ci/requirements.txt
+      # [7] cached pip; no dependency file in this repo, so cache keys off the pip install command itself
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install
-        run: pip install -r .github/ci/requirements.txt
-
-      # [9] mecha errors become inline annotations on the offending line
-      - name: Register problem matcher
-        run: echo "::add-matcher::.github/ci/mecha-matcher.json"
+      - name: Install mecha
+        run: pip install mecha
 
       - name: Run mecha
         run: mecha "${{ matrix.pack }}"
 
-  checks:
-    # [10]-[16] what mecha does not look at (see scripts/ci/check_pack.py)
-    name: static checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install
-        run: pip install -r .github/ci/requirements.txt
-
-      - name: Run checks
-        run: python scripts/ci/check_pack.py
-
   build:
-    needs: [ lint, checks ]
+    needs: lint
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v7
 
-      # [17] two archives built with `git archive`: reproducible, tracked files only, so examples/, scripts/ and
+      # [17] two archives built with `git archive`: reproducible, tracked files only, so examples/ and
       # .github/ can never leak into the datapack. datapack.zip keeps its old name (download links stay valid).
       - name: Package datapacks
         run: |
@@ -119,7 +97,7 @@ jobs:
             size=$(stat -c%s "$z")
             if [ "$size" -ge 5242880 ]; then echo "::error::$z is $size bytes (limit 5 MiB)"; exit 1; fi
           done
-          if unzip -Z1 datapack.zip | grep -qE '^(examples|scripts|\.github)/'; then
+          if unzip -Z1 datapack.zip | grep -qE '^(examples|\.github)/'; then
             echo "::error::datapack.zip contains repo-only folders"; exit 1
           fi
           {
