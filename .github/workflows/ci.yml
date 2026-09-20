@@ -1,12 +1,13 @@
 # guikit CI: lint -> build -> publish.
-# NOTE: this workflow previously referenced scripts/ci/check_pack.py and .github/ci/requirements.txt /
-# mecha-matcher.json. None of those files exist in this repo, which is why lint and static checks were
-# failing with "No file ... matched, make sure you have checked out the target repository" — setup-python's
-# pip cache and the install step were pointed at paths that were never created. This version only uses
-# what's actually in the repo: mecha installed directly from PyPI, no extra check script, no matcher file.
+# NOTE: this workflow previously used actions/setup-python with cache: pip. Even with no
+# cache-dependency-path given, that action still globs the repo for **/requirements.txt or
+# **/pyproject.toml to build its cache key — and this repo has neither, so it always failed with
+# "No file ... matched, make sure you have checked out the target repository". ubuntu-24.04 runners
+# ship Python 3.12 preinstalled, so this version skips the action entirely and uses the system
+# python3 / pip directly. mecha is installed straight from PyPI; no dependency file needed.
 #  [1] least-privilege permissions   [2] concurrency        [3] pinned runner       [4] job timeouts
-#  [5] manual inputs                 [6] weekly schedule    [7] pinned tools + pip cache
-#  [8] lint matrix (all packs)       [17] core + demo zips  [18] zip verification   [19] SHA256SUMS
+#  [5] manual inputs                 [6] weekly schedule    [8] lint matrix (all packs)
+# [17] core + demo zips  [18] zip verification   [19] SHA256SUMS
 # [20] release notes + opt-in pruning of old build-* releases
 
 name: CI
@@ -59,17 +60,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # [7] cached pip; no dependency file in this repo, so cache keys off the pip install command itself
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: pip
+      - name: Show Python version
+        run: python3 --version
 
       - name: Install mecha
-        run: pip install mecha
+        run: python3 -m pip install --user mecha
 
       - name: Run mecha
-        run: mecha "${{ matrix.pack }}"
+        run: python3 -m mecha "${{ matrix.pack }}"
 
   build:
     needs: lint
