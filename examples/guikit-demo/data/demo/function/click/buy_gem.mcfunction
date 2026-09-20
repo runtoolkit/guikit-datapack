@@ -1,5 +1,3 @@
-# every click keeps the menu alive
-scoreboard players set @s guikit.timer 1200
 # button + cost + cooldown
 function guikit:internal/clear_in
 data merge storage guikit:in {ticks:20}
