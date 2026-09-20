@@ -1,5 +1,7 @@
 # guikit - Minecraft GUI framework (datapack)
 
+[![CI](https://github.com/runtoolkit/guikit-datapack/actions/workflows/ci.yml/badge.svg)](https://github.com/runtoolkit/guikit-datapack/actions/workflows/ci.yml)
+
 A datapack framework port of the `guigenmc` logic (a JSON -> datapack generator).
 Instead of describing menus in JSON, you write `.mcfunction` files and call `guikit:` functions.
 
@@ -25,7 +27,7 @@ the item is removed, and the menu is redrawn if needed.
 2. `#guikit:fill` -> draws the current page (`guikit:widget/pad`, then `guikit:widget/draw`)
 3. `#guikit:probe` -> **one line per clickable widget**: `{id, fn}` + `guikit:widget/probe`
 4. `#guikit:clear_tags` -> `tag @s remove guikit.m.<alias>`
-5. `function guikit:internal/clear_in`, then `data merge storage guikit:in {menu:"ns:id"}`, then
+5. `function guikit:internal/clear/in`, then `data merge storage guikit:in {menu:"ns:id"}`, then
    `function guikit:api/open`
 
 Full working example: the **`guikit-demo`** datapack (3 pages: state widgets on page 0/1 -- button,
@@ -114,7 +116,7 @@ resets are gone). It is restarted when the player **interacts with (right-clicks
 ## Conditions (`guikit:cond/check`)
 
 ```mcfunction
-function guikit:internal/clear_cond
+function guikit:internal/clear/cond
 data merge storage guikit:cond {type:"score", obj:"coins", min:10}
 function guikit:cond/check
 execute if score #cond guikit.tmp matches 1 run say enough coins
@@ -146,7 +148,7 @@ A missing `of` fails (`not` is not applied to it).
 `not:1b` inverts. An unknown `type` or a missing key **fails** (result 0), except that a `not:1b` next to an
 unknown type / missing key flips that 0 to 1 (known quirk of the leaf types; the `all`/`any` path does not have it). Every type is its own small function
 (`guikit:cond/t_*`); `min`/`max` are two open-ended ranges, never a closed `A..B`.
-New key -> add it to `guikit:internal/clear_cond` and to `guikit:cond/load_cur` (that copy list is shared by buttons and by `all`/`any`).
+New key -> add it to `guikit:internal/clear/cond` and to `guikit:cond/load_cur` (that copy list is shared by buttons and by `all`/`any`).
 
 ## Command buttons (`guikit:widget/button`)
 
@@ -198,7 +200,7 @@ literal `value` (menu code decides which slot maps to which value -- same trust 
 `toggle` / `cycle`, no defs registry).
 
 ```mcfunction
-function guikit:internal/clear_in
+function guikit:internal/clear/in
 data merge storage guikit:in {obj:"mode", value:2}
 function guikit:widget/radio
 ```
@@ -232,7 +234,7 @@ Plays a sound to the clicking player only (`ui` category, so it follows the clie
 and nothing else). Call it from a click handler, `as @s at @s`:
 
 ```mcfunction
-function guikit:internal/clear_in
+function guikit:internal/clear/in
 data merge storage guikit:in {sound:"minecraft:ui.button.click", volume:1.0, pitch:1.0}
 function guikit:widget/sound
 ```
@@ -262,23 +264,46 @@ per-menu state. **Two things to know before you write a listener:**
 Same rules as the other tags: must exist (even empty) and must not use `replace: true`. Example:
 `demo:on_close` (disarms the danger button).
 
-## Cooldown feedback (`guikit:internal/cd_notify`)
+## Cooldown feedback (`guikit:internal/cooldown/notify`)
 `widget/cooldown_start` returns `0` while a cooldown runs but tells the player nothing. To show the
 remaining time (rounded up to whole seconds, `guikit.cd` counts ticks):
 ```mcfunction
-execute unless function guikit:widget/cooldown_start run function guikit:internal/cd_notify
+execute unless function guikit:widget/cooldown_start run function guikit:internal/cooldown/notify
 ```
 `cd_notify` reads `@s guikit.cd` directly and prints `[GUI] Wait Ns.` to that player. Not used by the demo.
 
 ## CI (`.github/workflows/ci.yml`)
-Runs on push / PR to `main`, weekly (Monday) and by hand. `lint` (mecha on the root pack **and** `examples/guikit-demo`,
-errors annotated inline via `.github/ci/mecha-matcher.json`, JSON syntax), `pack-metadata` and `checks` (`scripts/ci/check_pack.py`) must all pass before `build` packages the datapacks;
-`publish` (push to `main`, or a manual run with `publish` ticked) attaches them to a `build-N` release.
+Runs on push / PR to `main`, weekly (Monday) and by hand. **Gating chain:** `lint` (mecha on the root pack **and**
+`examples/guikit-demo`, errors annotated inline via `.github/ci/mecha-matcher.json`, JSON syntax), `pack-metadata` and
+`checks` (`scripts/ci/check_pack.py`) must all pass before `build` packages the datapacks; `publish` (push to `main`, or a
+manual run with `publish` ticked) attaches them to a `build-N` release.
 
-Run the same checks locally: `pip install mecha && python scripts/ci/check_pack.py` (one check: `python scripts/ci/check_pack.py refs`).
-mecha is pinned in the workflow (`MECHA_VERSION`). The workflow uses the runner's own Python and does not use
-`actions/setup-python` with `cache: pip`: that action insists on a `requirements.txt` / `pyproject.toml` for its cache key and
-fails without one, and this repo has neither.
+**Independent jobs.** Nothing waits for these, each can be deleted without touching the rest:
+
+| job | what it does | runs |
+| --- | --- | --- |
+| `hygiene` | tracked zips/jars/`dist/`, files over 1 MiB, secrets (GitHub/AWS/Slack/Google tokens, private keys), CRLF, BOM, trailing whitespace, missing final newline, function files without a header comment | always |
+| `docs drift` | function ids the README mentions that do not exist (renamed/removed), public `widget/*` and `api/*` functions the README never mentions | always |
+| `reference` | `REFERENCE.md` artifact generated from the code: functions with their header comments, objectives, storages, entity tags, function tags, advancements | always |
+| `PR summary` | job summary with files per area and functions added / removed / renamed / modified | pull requests |
+| `workflow lint` | actionlint (version pinned, sha256 verified) on the workflow files | always |
+| `reproducible zips` | builds both zips twice and compares the bytes | always |
+| `canary` | newest mecha, and `ubuntu-latest` instead of the pinned image | weekly, manual |
+| `Minecraft drift` | reads the Mojang manifest: does the latest release / snapshot use a higher data pack format than `max_format`? (warning; fails only with the repository variable `DRIFT_FAIL=1`) | weekly, manual |
+| `server smoke test` | starts a real vanilla server (`MC_VERSION`, Java taken from the version json) with both packs, runs `/reload` and read-only commands, fails on any load error in the log; uploads `smoke.log` | weekly, manual, and pushes/PRs when the repository variable `SMOKE_TEST=1` |
+
+Also new: `build` writes `BUILD_INFO.json` (commit, run, mecha version, size and sha256 of both zips) and the release notes
+start with the files that were added / changed / removed in `datapack.zip` since the previous release. **Strict mode:** the
+`strict` manual input or the repository variable `CHECK_STRICT=1` makes warnings of `checks`, `hygiene` and `docs` fail
+the run. `.gitattributes` keeps LF line endings, `.github/dependabot.yml` proposes action updates weekly.
+
+Run the checks locally: `pip install mecha && python scripts/ci/check_pack.py` (default set). Named checks:
+`python scripts/ci/check_pack.py hygiene docs refs`; generators: `... reference --out REFERENCE.md`,
+`... pr-summary --base <sha>`; `--strict` turns warnings into failures. `python scripts/ci/mc_drift.py` and
+`python scripts/ci/smoke_server.py meta|run` are the drift and smoke scripts. mecha is pinned in the workflow
+(`MECHA_VERSION`). The workflow uses the runner's own Python and does not use `actions/setup-python` with `cache: pip`:
+that action insists on a `requirements.txt` / `pyproject.toml` for its cache key and fails without one, and this repo has
+neither.
 
 | check | what it catches (errors fail the run, warnings only annotate) |
 | --- | --- |
@@ -289,13 +314,14 @@ fails without one, and this repo has neither.
 | `objectives` | a scoreboard objective read or written but never created by `scoreboard objectives add` |
 | `unused` | functions nothing refers to (warning); the public API prefixes are listed in `PUBLIC` |
 | `mcmeta` | missing description, `min_format > max_format`, different format ranges across packs |
+| `hygiene`, `docs` | see the job table above (not part of the default set, they run as their own jobs) |
 
-Release assets: `datapack.zip` (core, same name as before), `guikit-demo.zip` and `SHA256SUMS.txt`. Both zips are built with
-`git archive`, so they are reproducible and contain only tracked files; `examples/`, `scripts/` and `.github/` never end up
-in the core zip. Old `build-*` releases are only pruned when the repository variable `PRUNE_KEEP` (or the manual input
-`prune_keep`) is a number above 0. The runner is pinned to `ubuntu-24.04` (`ubuntu-latest` moves to Ubuntu 26 from
-19 Oct 2026); change it deliberately after a green run on the new image. Pushing workflow files needs a token with the
-`workflow` scope.
+Release assets: `datapack.zip` (core, same name as before), `guikit-demo.zip`, `SHA256SUMS.txt` and `BUILD_INFO.json`. Both
+zips are built with `git archive --mtime=<commit date>`, so they are byte-for-byte reproducible and contain only tracked
+files; `examples/`, `scripts/` and `.github/` never end up in the core zip. Old `build-*` releases are only pruned when the
+repository variable `PRUNE_KEEP` (or the manual input `prune_keep`) is a number above 0. The runner is pinned to
+`ubuntu-24.04` (`ubuntu-latest` moves to Ubuntu 26 from 19 Oct 2026; the weekly `canary` tries the new image). Pushing
+workflow files needs a token with the `workflow` scope.
 
 ## Validation status
 - **`mecha .` passing does NOT mean the pack loads.** mecha 0.101 accepted `demo:click/lootbox` (now in `guikit-demo`) while
@@ -312,7 +338,7 @@ in the core zip. Old `build-*` releases are only pruned when the repository vari
   and the storage stayed untouched. The exact 26.3 rule behind this was **not identified**. All 43 uses were
   replaced by `data merge storage X {...}`.
 - **`merge` keeps old keys**, and `data remove storage X` needs a path, so scratch storages are cleared key by
-  key with `guikit:internal/clear_in` / `clear_w` before each merge. Otherwise keys like `wrap`, `min`,
+  key with `guikit:internal/clear/in` / `clear_w` before each merge. Otherwise keys like `wrap`, `min`,
   `max` from a previous widget call would leak into the next one (e.g. into `counter_step`).
   When you add a new key to a `guikit:in` / `guikit:w` call, add it to the matching `clear_*` function too.
 - **Conditions / command buttons (`cond/*`, `widget/button*`, `internal/btn_*`):** `mecha .` passes and every macro
@@ -336,6 +362,12 @@ in the core zip. Old `build-*` releases are only pruned when the repository vari
   Not checked in a real 26.3 client: that the advancement JSON parses (written after the 26.3 release notes and a
   working snippet, not run), that right-clicking the cart fires the trigger, that `entity_type` accepts the tag
   `#guikit:container`, and that the revoke in `reset_cd` re-arms it. Check `latest.log` for an advancement parse error.
+- **CI extras (`smoke`, `mc-drift`, the release-notes step, `BUILD_INFO.json`) were exercised with fakes, not on GitHub or
+  against Mojang:** the smoke driver against a fake console (start, commands, reload, load-error and missing-registry
+  cases), the drift parser against mocked version jsons in the layouts known so far, the release-notes step against a fake
+  `gh` and real zips. Not run for real: the Mojang download, `actions/setup-java@v5`, the real server's console wording
+  (`Done (`, `data get storage` answers) and `gh release download`. Treat the first runs as tests; `smoke` and `mc-drift`
+  are advisory and nothing depends on them.
 - **Still not done:** behavior in a real game (`clear` + `custom_data` match, `summon`, tick ordering,
   multiplayer). Only the load step has been observed.
 - **The container registry (`internal/containers_builtin`, `summon`, `pad_cart_dyn`, `open_fail`), the `radio`/`meter`
@@ -350,11 +382,11 @@ Scratch state is wiped so one menu session cannot leak into the next.
 
 | when | what | function |
 | --- | --- | --- |
-| menu closes (`api/close`) | `guikit:w`, `guikit:cond`, `guikit:ctx` (`menu`, `alias`, `ctype`), `guikit:p`, `guikit:mtr` scratch keys | `guikit:internal/cleanup_player` |
-| end of every button click | `guikit:btn cur` | `guikit:internal/clear_btn_cur` |
+| menu closes (`api/close`) | `guikit:w`, `guikit:cond`, `guikit:ctx` (`menu`, `alias`, `ctype`), `guikit:p`, `guikit:mtr` scratch keys | `guikit:internal/clear/player` |
+| end of every button click | `guikit:btn cur` | `guikit:internal/btn/clear_cur` |
 | end of `api/open` | `guikit:ctx` `menu` / `alias` | inline |
-| every `/reload` | all of the above + `guikit:in` + every transient fake-player score (`#uid`, `#hit`, `#gui`, `#wcount`, the `#m*` meter temps, ...) | `guikit:internal/cleanup_scores` |
-| every `/reload` | carts whose owner is gone (relog / death / uid lost) are disposed | `guikit:internal/sweep_orphans` |
+| every `/reload` | all of the above + `guikit:in` + every transient fake-player score (`#uid`, `#hit`, `#gui`, `#wcount`, the `#m*` meter temps, ...) | `guikit:internal/clear/scores` |
+| every `/reload` | carts whose owner is gone (relog / death / uid lost) are disposed | `guikit:internal/sweep/orphans` |
 
 Never touched: `guikit:reg menus` and `guikit:btn defs` (rebuilt by `#guikit:register` on load),
 `#next_uid` / `#version` (uid counter must stay unique across reloads).
@@ -395,7 +427,7 @@ resolves, but per the validation notes above that does not prove the pack loads 
 
 ## Known limits
 - `guikit:widget/pad` always stamps 27 slots -> **do not use with `hopper_minecart`** (5 slots).
-- If a menu draws a widget under `execute if score ... matches N run function guikit:internal/clear_w` + `... run data merge`
+- If a menu draws a widget under `execute if score ... matches N run function guikit:internal/clear/w` + `... run data merge`
   and no range matches, `guikit:w` is empty and `guikit:widget/draw` fails on missing macro arguments instead of
   redrawing the previous widget. Initialize scores before drawing.
 - `name` / `lore` are **SNBT text components**, not JSON strings: `name:{text:"Bob's",color:"gold",italic:false}`,

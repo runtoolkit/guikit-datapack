@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Static checks for the guikit datapack(s), run by .github/workflows/ci.yml.
 
-    python scripts/ci/check_pack.py [check ...]          (no argument = all checks)
+    python scripts/ci/check_pack.py [--strict] [check ...]      (no check = the default set)
 
-Checks: json  pitfalls  macros  refs  objectives  unused  mcmeta
+Default checks: json  pitfalls  macros  refs  objectives  unused  mcmeta
+Extra checks (only when named): hygiene  docs
+Generators: `reference [--out FILE]` writes REFERENCE.md, `pr-summary [--base SHA]` summarises a pull request.
+--strict (or CHECK_STRICT=1) turns warnings into failures.
 Errors fail the run (exit 1), warnings only annotate. Output uses GitHub workflow commands (::error file=..)
 so findings show up inline on the changed files; a table is appended to $GITHUB_STEP_SUMMARY when set.
 Stdlib only; the `macros` check also needs the `mecha` module (pip install mecha).
@@ -78,6 +81,10 @@ class Report:
     @property
     def errors(self):
         return sum(r["error"] for r in self.rows.values())
+
+    @property
+    def warnings(self):
+        return sum(r["warning"] for r in self.rows.values())
 
     def summary(self):
         out = ["### guikit static checks", "", "| check | errors | warnings |", "| --- | ---: | ---: |"]
@@ -275,14 +282,13 @@ SCORE_SEL = re.compile(r"scores=\{([^}]*)\}")
 OBJ_ADD = re.compile(r"scoreboard objectives add (\S+)")
 
 
-def check_objectives(rep):
-    """Every scoreboard objective that code reads or writes must be created by some `scoreboard objectives add`."""
-    rep.touch("objectives")
-    created, used = set(), []
+def scan_objectives():
+    """({name: (file, line)} of created objectives, [(name, file, line)] of every read/write)."""
+    created, used = {}, []
     for f in walk((".mcfunction",)):
         for n, line in code_lines(f):
             for m in OBJ_ADD.finditer(line):
-                created.add(m.group(1))
+                created.setdefault(m.group(1), (rel(f), n))
             names = []
             for rx in (SCORE_WRITE, SCORE_RESET, SCORE_OP, SCORE_COND):
                 for m in rx.finditer(line):
@@ -292,6 +298,13 @@ def check_objectives(rep):
             for name in names:
                 if "$(" not in name and name not in ("run", "matches"):
                     used.append((name, rel(f), n))
+    return created, used
+
+
+def check_objectives(rep):
+    """Every scoreboard objective that code reads or writes must be created by some `scoreboard objectives add`."""
+    rep.touch("objectives")
+    created, used = scan_objectives()
     for name, file, n in used:
         if name not in created:
             rep.error("objectives", file, n, f"scoreboard objective `{name}` is used but never created with `scoreboard objectives add`")
@@ -341,23 +354,297 @@ def check_mcmeta(rep):
         rep.warn("mcmeta", "pack.mcmeta", 0, "packs declare different format ranges: " + ", ".join(f"{k}={v}" for k, v in ranges.items()))
 
 
+# ------------------------------------------------------------------ extra checks (not part of the default run)
+
+FORBIDDEN_EXT = {".zip", ".jar", ".exe", ".dll", ".class", ".pyc", ".7z", ".rar", ".tar", ".gz", ".tgz", ".mca"}
+FORBIDDEN_DIRS = ("dist/", "build/", "out/")
+TEXT_EXT = {".mcfunction", ".json", ".mcmeta", ".md", ".yml", ".yaml", ".py", ".txt", ".gitattributes"}
+SECRET_PATTERNS = [
+    (re.compile(r"ghp_[A-Za-z0-9]{36}"), "GitHub personal access token"),
+    (re.compile(r"github_pat_[A-Za-z0-9_]{50,}"), "GitHub fine-grained token"),
+    (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key id"),
+    (re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"), "private key"),
+    (re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
+    (re.compile(r"AIza[0-9A-Za-z_-]{35}"), "Google API key"),
+]
+BIG = 1024 * 1024
+LARGE = 256 * 1024
+
+
+def tracked_files():
+    """Tracked files (git ls-files); outside a git checkout, every file of the tree."""
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True).stdout
+        return [ROOT / p for p in out.decode("utf-8", "replace").split("\0") if p]
+    except (OSError, subprocess.CalledProcessError):
+        return list(walk(("",)))
+
+
+def index_eol():
+    """{path: 'crlf'|'lf'|...} as stored in the git index (git ls-files --eol)."""
+    try:
+        out = subprocess.run(["git", "ls-files", "--eol"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {}
+    res = {}
+    for line in out.splitlines():
+        meta, _, path = line.partition("\t")
+        parts = meta.split()
+        if parts and parts[0].startswith("i/"):
+            res[path] = parts[0][2:]
+    return res
+
+
+def check_hygiene(rep):
+    """Repository hygiene: stray binaries, huge files, secrets, line endings, whitespace, missing header comments."""
+    rep.touch("hygiene")
+    eol = index_eol()
+    no_header, trailing = [], 0
+    for f in tracked_files():
+        if not f.is_file():
+            continue
+        r, ext = rel(f), f.suffix.lower()
+        if ext in FORBIDDEN_EXT or r.startswith(FORBIDDEN_DIRS):
+            rep.error("hygiene", r, 0, "build artifact / binary file is tracked (release assets belong in Releases, not in git)")
+        size = f.stat().st_size
+        if size > BIG:
+            rep.error("hygiene", r, 0, f"file is {size // 1024} KiB (limit {BIG // 1024} KiB)")
+        elif size > LARGE:
+            rep.warn("hygiene", r, 0, f"file is {size // 1024} KiB, unusually large for a datapack")
+        if ext not in TEXT_EXT and f.name != ".gitattributes":
+            continue
+        raw = f.read_bytes()
+        text = raw.decode("utf-8", "replace")
+        for rx, what in SECRET_PATTERNS:
+            for m in rx.finditer(text):
+                rep.error("hygiene", r, text.count("\n", 0, m.start()) + 1, f"looks like a {what}; remove it and rotate the secret")
+        if ext != ".mcfunction":  # mcfunction BOM / CRLF are the `pitfalls` check
+            if raw.startswith(b"\xef\xbb\xbf"):
+                rep.error("hygiene", r, 1, "UTF-8 BOM at the start of the file")
+            if eol.get(r) == "crlf" or (r not in eol and b"\r\n" in raw):
+                rep.error("hygiene", r, 1, "CRLF line endings in the repository (use LF; .gitattributes keeps it that way)")
+        if raw and not raw.endswith(b"\n"):
+            rep.warn("hygiene", r, 0, "file does not end with a newline")
+        if ext in (".mcfunction", ".json", ".mcmeta", ".py", ".yml", ".yaml"):
+            bad = sum(1 for line in text.splitlines() if line != line.rstrip())
+            if bad:
+                trailing += 1
+                rep.warn("hygiene", r, 0, f"{bad} line(s) with trailing whitespace")
+        if ext == ".mcfunction":
+            first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+            if first and not first.startswith("#"):
+                no_header.append(r)
+    for r in no_header[:10]:
+        rep.warn("hygiene", r, 1, "function file does not start with a comment (repo convention: `# guikit :: name` / `# macro: $(..)`)")
+    if len(no_header) > 10:
+        rep.warn("hygiene", "data", 0, f"... and {len(no_header) - 10} more function files without a leading comment")
+
+
+# helpers that live under widget/ but are implementation details of another widget
+DOCS_INTERNAL = {"guikit:widget/draw_on_cart"}
+DOC_TOKEN = re.compile(r"\b([a-z0-9_.-]+):([a-z0-9_.-]+/[a-z0-9_./-]*)")
+
+
+def check_docs(rep):
+    """README drift: function ids it mentions must exist, and every public widget/api function must be mentioned."""
+    rep.touch("docs")
+    readme = ROOT / "README.md"
+    if not readme.is_file():
+        rep.warn("docs", "README.md", 0, "no README.md")
+        return
+    funcs, tags = function_ids(), tag_ids()
+    namespaces = {i.split(":")[0] for i in funcs}
+    text = readme.read_text(encoding="utf-8", errors="replace")
+    for n, line in enumerate(text.splitlines(), 1):
+        seen = set()
+        for m in list(FUNC_REF.finditer(line)) + list(DOC_TOKEN.finditer(line)):
+            if m.re is FUNC_REF:
+                is_tag, name = bool(m.group(1)), m.group(2)
+            else:
+                is_tag, name = False, f"{m.group(1)}:{m.group(2)}"
+                nxt = line[m.end():m.end() + 1]
+                if nxt in ("*", "<", "{", "$") or name.endswith(("/", "_", ".")):
+                    continue  # a wildcard / placeholder such as `guikit:cond/t_*`
+            if name.split(":")[0] not in namespaces:
+                continue  # example namespaces (`ns:buy`) and minecraft:
+            if (is_tag, name) in seen:
+                continue
+            seen.add((is_tag, name))
+            if name not in (tags if is_tag else funcs):
+                rep.error("docs", "README.md", n, f"README mentions `{'#' if is_tag else ''}{name}` but it does not exist (renamed or removed?)")
+    for id_, f in sorted(funcs.items()):
+        if not id_.startswith(("guikit:api/", "guikit:widget/")) or id_ in DOCS_INTERNAL:
+            continue
+        short = id_.split("/", 1)[1]
+        if not re.search(r"(?<![\w-])" + re.escape(short) + r"(?![\w-])", text):
+            rep.warn("docs", rel(f), 0, f"`{id_}` is not mentioned in README.md")
+
+
+def generate_reference(out):
+    """REFERENCE.md: functions with their header comments, objectives, storages, tags, function tags, advancements."""
+    funcs, tags = function_ids(), tag_ids()
+    created, used = scan_objectives()
+    uses = {}
+    for name, _, _ in used:
+        uses[name] = uses.get(name, 0) + 1
+    storages, entity_tags = {}, {}
+    macro_ids = set()
+    lines = ["# guikit reference", "", "_Generated by `python scripts/ci/check_pack.py reference` from the repository; do not edit._", ""]
+    groups = {}
+    for id_, f in sorted(funcs.items()):
+        header, macro = "", False
+        for raw in f.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+            if not header and raw.strip().startswith("#"):
+                header = raw.strip().lstrip("#").strip()
+            if raw.startswith("$"):
+                macro = True
+            for m in re.finditer(r"\bstorage ([a-z0-9_.-]+:[a-z0-9_./-]+)", raw):
+                storages[m.group(1)] = storages.get(m.group(1), 0) + 1
+            if not raw.strip().startswith("#"):
+                for m in re.finditer(r"\btag \S+ (?:add|remove) ([A-Za-z0-9_.+-]+)", raw):
+                    entity_tags[m.group(1)] = entity_tags.get(m.group(1), 0) + 1
+                for m in re.finditer(r"\btag=!?([A-Za-z0-9_.+-]+)", raw):
+                    entity_tags[m.group(1)] = entity_tags.get(m.group(1), 0) + 1
+        if macro:
+            macro_ids.add(id_)
+        groups.setdefault(id_.rsplit("/", 1)[0] if "/" in id_ else id_.split(":")[0] + ":", []).append((id_, header[:150], macro))
+    lines += ["| | count |", "| --- | ---: |",
+              f"| functions | {len(funcs)} |", f"| macro functions | {len(macro_ids)} |", f"| function tags | {len(tags)} |",
+              f"| scoreboard objectives | {len(created)} |", f"| storages | {len(storages)} |", f"| entity tags | {len(entity_tags)} |", ""]
+    lines += ["## Functions", ""]
+    for group, items in sorted(groups.items()):
+        lines.append(f"### `{group}`")
+        lines.append("")
+        for id_, header, macro in items:
+            lines.append(f"- `{id_}`{' (macro)' if macro else ''}" + (f" - {header}" if header else ""))
+        lines.append("")
+    lines += ["## Scoreboard objectives", "", "| objective | created in | reads/writes |", "| --- | --- | ---: |"]
+    for name in sorted(set(created) | set(uses)):
+        where = f"`{created[name][0]}`" if name in created else "**never created**"
+        lines.append(f"| `{name}` | {where} | {uses.get(name, 0)} |")
+    lines += ["", "## Storages", "", "| storage | uses |", "| --- | ---: |"]
+    lines += [f"| `{k}` | {v} |" for k, v in sorted(storages.items())]
+    lines += ["", "## Entity tags", "", ", ".join(f"`{k}`" for k in sorted(entity_tags)), "", "## Function tags", ""]
+    for id_, f in sorted(tags.items()):
+        try:
+            vals = ", ".join(f"`{v}`" for v in _tag_values(f))
+        except (ValueError, AttributeError):
+            vals = "(unreadable)"
+        lines.append(f"- `#{id_}`: {vals or '(empty)'}")
+    lines += ["", "## Advancements", ""]
+    for pack in packs():
+        for f in sorted((pack / "data").glob("*/advancement/**/*.json")):
+            ns = f.relative_to(pack / "data").parts[0]
+            sub = f.relative_to(pack / "data" / ns / "advancement").with_suffix("").as_posix()
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                trig = ", ".join(sorted(c.get("trigger", "?") for c in data.get("criteria", {}).values()))
+                reward = data.get("rewards", {}).get("function", "")
+            except ValueError:
+                trig, reward = "(invalid JSON)", ""
+            lines.append(f"- `{ns}:{sub}`: trigger {trig}" + (f", reward function `{reward}`" if reward else ""))
+    Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"reference: {out} ({len(funcs)} functions, {len(created)} objectives, {len(storages)} storages)")
+
+
+AREAS = [
+    ("core functions", "data/guikit/function/"), ("core tags / advancements / other data", "data/guikit/"),
+    ("demo pack", "examples/"), ("CI and scripts", (".github/", "scripts/")), ("docs", ("README.md", "LICENSE")),
+]
+
+
+def pr_summary(base):
+    """What a pull request changes, as a job summary: files per area, functions added/removed/renamed."""
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    res = git("diff", "--name-status", "-M", f"{base}...HEAD")
+    if res.returncode != 0:
+        print(f"::notice title=pr-summary::cannot diff against {base}: {res.stderr.strip()[:200]}")
+        return
+    changes = [ln.split("\t") for ln in res.stdout.splitlines() if ln]
+    def fid(path):
+        m = re.match(r"(?:examples/[^/]+/)?data/([^/]+)/function/(.+)\.mcfunction$", path)
+        return f"{m.group(1)}:{m.group(2)}" if m else None
+    added, removed, renamed, modified = [], [], [], []
+    per_area = {}
+    for ch in changes:
+        status, paths = ch[0][0], ch[1:]
+        path = paths[-1]
+        area = next((a for a, pre in AREAS if path.startswith(pre)), "other")
+        per_area[area] = per_area.get(area, 0) + 1
+        ids = [fid(p) for p in paths]
+        if status == "A" and ids[-1]:
+            added.append(ids[-1])
+        elif status == "D" and ids[0]:
+            removed.append(ids[0])
+        elif status == "R" and ids[0] and ids[-1]:
+            renamed.append(f"{ids[0]} -> {ids[-1]}")
+        elif status == "M" and ids[-1]:
+            modified.append(ids[-1])
+    out = ["### Pull request summary", "", f"{len(changes)} file(s) changed against `{base}`.", "",
+           "| area | files |", "| --- | ---: |"] + [f"| {a} | {n} |" for a, n in sorted(per_area.items())]
+    for title, items in (("Functions added", added), ("Functions removed", removed), ("Functions renamed", renamed),
+                         ("Functions modified", modified)):
+        if items:
+            out += ["", f"**{title} ({len(items)})**", ""] + [f"- `{i}`" for i in sorted(items)[:40]]
+            if len(items) > 40:
+                out.append(f"- ... and {len(items) - 40} more")
+    core_changed = any(p.startswith("data/guikit/") for c in changes for p in c[1:])
+    readme_changed = any("README.md" in c[1:] for c in changes)
+    if core_changed and not readme_changed:
+        out += ["", "> core code changed but README.md did not; if this is user-visible, document it."]
+        print("::notice title=pr-summary::core code changed but README.md did not")
+    text = "\n".join(out) + "\n"
+    print(text)
+    target = os.environ.get("GITHUB_STEP_SUMMARY")
+    if target:
+        with open(target, "a", encoding="utf-8") as fh:
+            fh.write(text)
+
+
 CHECKS = {
     "json": check_json, "pitfalls": check_pitfalls, "macros": check_macros, "refs": check_refs,
     "objectives": check_objectives, "unused": check_unused, "mcmeta": check_mcmeta,
+    "hygiene": check_hygiene, "docs": check_docs,
 }
+DEFAULT = ["json", "pitfalls", "macros", "refs", "objectives", "unused", "mcmeta"]  # what a bare run does
 
 
 def main(argv):
-    wanted = argv or list(CHECKS)
+    strict = os.environ.get("CHECK_STRICT") == "1"
+    args = []
+    it = iter(argv)
+    out, base = "REFERENCE.md", os.environ.get("BASE_SHA", "")
+    for a in it:
+        if a == "--strict":
+            strict = True
+        elif a == "--out":
+            out = next(it, out)
+        elif a == "--base":
+            base = next(it, base)
+        else:
+            args.append(a)
+    if args[:1] == ["reference"]:
+        generate_reference(out)
+        return 0
+    if args[:1] == ["pr-summary"]:
+        if not base:
+            print("::notice title=pr-summary::no base (set BASE_SHA or pass --base), nothing to summarise")
+            return 0
+        pr_summary(base)
+        return 0
+    wanted = args or DEFAULT
     bad = [c for c in wanted if c not in CHECKS]
     if bad:
-        print(f"unknown check(s): {', '.join(bad)}; available: {', '.join(CHECKS)}", file=sys.stderr)
+        print(f"unknown check(s): {', '.join(bad)}; available: {', '.join(CHECKS)}, reference, pr-summary", file=sys.stderr)
         return 2
     rep = Report()
     for name in wanted:
         CHECKS[name](rep)
     rep.summary()
-    return 1 if rep.errors else 0
+    if strict and rep.warnings:
+        print(f"strict mode: {rep.warnings} warning(s) count as failures")
+    return 1 if rep.errors or (strict and rep.warnings) else 0
 
 
 if __name__ == "__main__":
