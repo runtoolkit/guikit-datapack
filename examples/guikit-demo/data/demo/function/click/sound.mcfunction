@@ -1,3 +1,4 @@
+# demo :: click/sound
 function guikit:internal/clear/in
 data merge storage guikit:in {obj:"demo.sound_on"}
 function guikit:widget/toggle

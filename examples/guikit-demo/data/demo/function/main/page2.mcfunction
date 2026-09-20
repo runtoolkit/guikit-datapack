@@ -58,10 +58,10 @@ function guikit:widget/meter_draw with storage guikit:w
 
 # --- open a themed sub-menu (ender_chest / barrel, see README "Container types")
 function guikit:internal/clear/w
-data merge storage guikit:w {slot:24, item:"minecraft:ender_eye", id:"open_ender_chest", type:"nav", name:'{"text":"Open: Ender Chest theme","color":"light_purple","italic":false}', lore:'[]'}
+data merge storage guikit:w {slot:24, item:"minecraft:ender_eye", id:"open_ender_chest", type:"nav", name:{text:"Open: Ender Chest theme",color:"light_purple",italic:false}, lore:[]}
 function guikit:widget/draw
 function guikit:internal/clear/w
-data merge storage guikit:w {slot:25, item:"minecraft:barrel", id:"open_barrel", type:"nav", name:'{"text":"Open: Barrel theme","color":"gold","italic":false}', lore:'[]'}
+data merge storage guikit:w {slot:25, item:"minecraft:barrel", id:"open_barrel", type:"nav", name:{text:"Open: Barrel theme",color:"gold",italic:false}, lore:[]}
 function guikit:widget/draw
 
 function guikit:internal/clear/w
@@ -76,8 +76,8 @@ function guikit:widget/draw
 
 # --- nav back to page 1, close
 function guikit:internal/clear/w
-data merge storage guikit:w {slot:18, item:"minecraft:arrow", id:"to_page1", type:"nav", name:'{"text":"Back","color":"white","italic":false}', lore:'[]'}
+data merge storage guikit:w {slot:18, item:"minecraft:arrow", id:"to_page1", type:"nav", name:{text:"Back",color:"white",italic:false}, lore:[]}
 function guikit:widget/draw
 function guikit:internal/clear/w
-data merge storage guikit:w {slot:26, item:"minecraft:barrier", id:"close", type:"close", name:'{"text":"Close","color":"red","italic":false}', lore:'[]'}
+data merge storage guikit:w {slot:26, item:"minecraft:barrier", id:"close", type:"close", name:{text:"Close",color:"red",italic:false}, lore:[]}
 function guikit:widget/draw
