@@ -1,0 +1,29 @@
+# guikit :: internal/sweep/foreign_cart     as cart
+# Widget olmayan (custom_data guikit.w:1b tasimayan) her slotu bosalt.
+execute unless items entity @s container.0 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.0 with air
+execute unless items entity @s container.1 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.1 with air
+execute unless items entity @s container.2 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.2 with air
+execute unless items entity @s container.3 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.3 with air
+execute unless items entity @s container.4 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.4 with air
+execute unless items entity @s container.5 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.5 with air
+execute unless items entity @s container.6 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.6 with air
+execute unless items entity @s container.7 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.7 with air
+execute unless items entity @s container.8 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.8 with air
+execute unless items entity @s container.9 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.9 with air
+execute unless items entity @s container.10 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.10 with air
+execute unless items entity @s container.11 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.11 with air
+execute unless items entity @s container.12 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.12 with air
+execute unless items entity @s container.13 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.13 with air
+execute unless items entity @s container.14 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.14 with air
+execute unless items entity @s container.15 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.15 with air
+execute unless items entity @s container.16 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.16 with air
+execute unless items entity @s container.17 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.17 with air
+execute unless items entity @s container.18 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.18 with air
+execute unless items entity @s container.19 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.19 with air
+execute unless items entity @s container.20 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.20 with air
+execute unless items entity @s container.21 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.21 with air
+execute unless items entity @s container.22 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.22 with air
+execute unless items entity @s container.23 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.23 with air
+execute unless items entity @s container.24 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.24 with air
+execute unless items entity @s container.25 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.25 with air
+execute unless items entity @s container.26 *[custom_data~{guikit:{w:1b}}] run item replace entity @s container.26 with air
