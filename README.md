@@ -291,6 +291,30 @@ manual run with `publish` ticked) attaches them to a `build-N` release.
 | `canary` | newest mecha, and `ubuntu-latest` instead of the pinned image | weekly, manual |
 | `Minecraft drift` | reads the Mojang manifest: does the latest release / snapshot use a higher data pack format than `max_format`? (warning; fails only with the repository variable `DRIFT_FAIL=1`) | weekly, manual |
 | `server smoke test` | starts a real vanilla server (`MC_VERSION`, Java taken from the version json) with both packs, runs `/reload` and read-only commands, fails on any load error in the log; uploads `smoke.log` | weekly, manual, and pushes/PRs when the repository variable `SMOKE_TEST=1` |
+| `mc-test` | downloads the Minecraft **client** JAR (sha1 checked against the Mojang manifest), runs its vanilla data generator to get that version's `commands.json` and walks every command of both packs against it; plus a taint scan for macro injection. Opens / updates / closes issues (see below) | pushes and PRs to `main`, weekly, manual |
+
+**`mc-test` in detail.** The client JAR cannot be started on a headless runner and it only loads data packs once a world is
+open, so this job does **not** launch the client (`server smoke test` is what reloads the packs in a real game). It uses what
+the client JAR does contain: the vanilla data generator, whose `commands.json` is the Brigadier command tree of exactly that
+version. It is a *structural* check (unknown command, unknown subcommand, wrong argument count); it does not evaluate selectors,
+NBT or item components and it runs no function. **Status: the command-tree walk has only been tested against a hand-written
+miniature tree, not against a real 26.3 `commands.json`.** Until a run on the real one is confirmed clean its mismatches are
+warnings and open no issues; set the repository variable `MC_TEST_STRICT=1` to make them errors. Expect to tune it once
+(`data` and `execute` are the large parts of the tree, with 288 + 250 lines here).
+
+*Security scan.* A macro sink (`$(cmd)`, `function $(fn)`, `open_url`, a `$(..)` inside a JSON string) is normal in this
+framework and documented above, so a sink alone is **not** reported. It is reported when a value a player can edit (block or
+entity data, `trigger`) is copied into a storage that is passed `with storage` to the function holding the sink. This is a
+heuristic over storage names, not real data-flow analysis: it can miss flows that go through several storages or through
+`function` tags, and it can flag a flow that is validated in a way it cannot see. Reviewed, accepted sinks go into
+`.github/ci/security-allow.json` as `{"fingerprints": ["<12 hex from the issue>"]}`.
+
+*Issues.* One issue per problem, labelled `mc-test` or `security`, tagged with a hidden fingerprint so it is never duplicated;
+still-present problems get a comment, resolved ones are closed. Only pushes to `main`, the weekly run and manual runs write
+issues (never a pull request). Because a public issue is a public disclosure, a `security` issue names only the file, line and
+class of problem; the data flow and the fix hint are in that run's job summary and in the `mc-test-findings` artifact. Set
+`MC_TEST_PUBLIC_DETAIL=1` for a private repository. Only this job has `issues: write`; the workflow default is still `contents: read`.
+Local: `python scripts/ci/mc_test.py security` (offline) and `python scripts/ci/mc_test.py test`.
 
 Also new: `build` writes `BUILD_INFO.json` (commit, run, mecha version, size and sha256 of both zips) and the release notes
 start with the files that were added / changed / removed in `datapack.zip` since the previous release. **Strict mode:** the

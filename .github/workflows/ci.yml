@@ -26,6 +26,9 @@
 # [33] reproducible  the zips must come out byte-identical when built twice
 # In the existing jobs: [34] BUILD_INFO.json  [35] "files changed since the previous release" in the release notes
 # [36] strict mode (warnings fail the run) via the `strict` input or the repository variable CHECK_STRICT
+# [39] mc-test     downloads the Minecraft *client* JAR (hash-verified), dumps that version's command tree with the vanilla
+#                  data generator and walks every command in every pack against it; plus a taint-based security scan
+#                  (scripts/ci/mc_test.py). Opens / updates / closes GitHub issues. Independent: nothing needs it.
 # Repo files that go with this: .gitattributes [38] keeps LF line endings, .github/dependabot.yml [37] bumps actions.
 
 name: CI
@@ -334,6 +337,64 @@ jobs:
           path: smoke-server/smoke.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # [39] Why the client JAR and not the server: the client jar carries the vanilla data generator, whose `commands.json` is
+  # the Brigadier tree of exactly this Minecraft version; the client itself cannot start on a headless runner (the real
+  # /reload is what `smoke` above does). Runs on pull requests and pushes too, but never for forks (no token for issues).
+  # A failed run opens ONE issue per problem (deduplicated by a hidden fingerprint), comments while it persists and closes it
+  # when it is gone. Security findings need a player-controlled value to *reach* a macro sink; a documented sink alone is not a finding.
+  mc-test:
+    name: mc-test (client ${{ inputs.mc_version || '26.3' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # least privilege: only this job may write issues; the workflow default stays contents: read
+    permissions:
+      contents: read
+      issues: write
+    env:
+      MC_VERSION: ${{ inputs.mc_version || '26.3' }}
+      # command-tree mismatches are warnings until MC_TEST_STRICT=1 (repository variable): see the note in mc_test.py
+      MC_TEST_STRICT: ${{ vars.MC_TEST_STRICT || '0' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Which Java does this Minecraft version need?
+        id: meta
+        run: python3 scripts/ci/mc_test.py meta
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ steps.meta.outputs.java }}
+
+      # No continue-on-error: it turned this step green while the job still failed, hiding the real cause in a
+      # different step. The step now fails visibly; the steps below use always() so findings / issues still run.
+      - name: Download client.jar, dump the command tree, validate, scan
+        id: test
+        run: python3 scripts/ci/mc_test.py test
+
+      - name: Upload findings and generator log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mc-test-findings
+          path: |
+            mc-test/findings.json
+            mc-test/generator.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Issues are only written for pushes to main, the weekly run and manual runs: a pull request from a fork has a
+      # read-only token, and a pull request should show its problems as annotations, not as new issues.
+      - name: Open / update / close issues
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request') &&
+          hashFiles('mc-test/findings.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/mc_test.py issues --findings mc-test/findings.json
 
   # [33] the zips must not depend on the clock or the runner. This guard found a real one: `git archive HEAD:examples/guikit-demo`
   # stamped the current time into guikit-demo.zip, so that zip was never reproducible (fixed with --mtime in `build` too)
