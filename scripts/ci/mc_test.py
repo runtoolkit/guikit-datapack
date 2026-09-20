@@ -71,42 +71,87 @@ def cmd_meta(args):
     return 0
 
 
+def _sha1(path):
+    h = hashlib.sha1()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _download(url, dest, sha1=None, what=""):
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "guikit-ci"}), timeout=600) as r, open(dest, "wb") as fh:
+        shutil.copyfileobj(r, fh)
+    if sha1 and _sha1(dest) != sha1:  # never run or trust a file that does not match the manifest
+        raise SystemExit(f"::error title=mc-test::{what or dest.name} sha1 does not match the Mojang manifest")
+
+
+def _rule_allows(rules):
+    """A library `rules` block (os / features) -> True if it applies on a linux runner. No rules = applies."""
+    if not rules:
+        return True
+    allowed = False
+    for r in rules:
+        osn = (r.get("os") or {}).get("name")
+        applies = (osn is None or osn == "linux") and not r.get("features")
+        if applies:
+            allowed = r.get("action") == "allow"
+    return allowed
+
+
 def download_client(mc_version):
-    dl = version_meta(mc_version)["downloads"]["client"]
+    """Returns (client.jar, [library jars]). The client jar alone is not runnable: since 1.18 the libraries are
+    not bundled in it, they are listed in the version json, so the generator needs them on its classpath."""
+    meta = version_meta(mc_version)
+    dl = meta["downloads"]["client"]
     WORK.mkdir(parents=True, exist_ok=True)
     jar = WORK / "client.jar"
     print(f"downloading {dl['url']} ({dl['size'] // 1024 // 1024} MiB)")
-    with urllib.request.urlopen(dl["url"], timeout=600) as r, open(jar, "wb") as fh:
-        shutil.copyfileobj(r, fh)
-    sha1 = hashlib.sha1(jar.read_bytes()).hexdigest()
-    if sha1 != dl["sha1"]:  # never run or trust a jar that does not match the manifest
-        raise SystemExit(f"::error title=mc-test::client.jar sha1 {sha1} does not match the manifest {dl['sha1']}")
-    return jar
+    _download(dl["url"], jar, dl["sha1"], "client.jar")
+    libs = []
+    for lib in meta.get("libraries", []):
+        art = (lib.get("downloads") or {}).get("artifact")
+        if not art or not _rule_allows(lib.get("rules")):
+            continue
+        dest = WORK / "libraries" / art["path"]
+        _download(art["url"], dest, art.get("sha1"), lib.get("name", art["path"]))
+        libs.append(dest)
+    print(f"{len(libs)} libraries downloaded")
+    return jar, libs
 
 
-def generate_commands(jar):
-    """Run the vanilla data generator from client.jar; returns the parsed commands.json."""
+def generate_commands(jar, libs):
+    """Run the vanilla data generator from client.jar; returns the parsed commands.json.
+
+    The client jar's Main-Class is the GUI game, so `java -jar client.jar` would open the game. The generator is a
+    separate entry point inside the same jar and is started with -cp. Everything the process prints is kept in
+    mc-test/generator.log and its tail is put into the error, so a failure is diagnosable from the job log alone."""
     out = WORK / "generated"
     if out.exists():
         shutil.rmtree(out)
-    # Newer clients ship the generator in the jar itself; the class name is checked so a moved entry point
-    # is reported as a clear error and not as a confusing Java stack trace.
     with zipfile.ZipFile(jar) as z:
-        names = set(z.namelist())
-    entry = next((c for c in ("net/minecraft/data/Main.class", "net/minecraft/data/Main$1.class") if c in names), None)
-    if entry is None:
-        raise SystemExit("::error title=mc-test::client.jar has no net.minecraft.data.Main; "
+        has_main = "net/minecraft/data/Main.class" in z.namelist()
+    if not has_main:
+        raise SystemExit("::error title=mc-test::client.jar has no net/minecraft/data/Main.class; "
                          "the data generator moved, update generate_commands() in scripts/ci/mc_test.py")
-    cmd = ["java", "-DbundlerMainClass=net.minecraft.data.Main", "-jar", str(jar), "--reports", "--output", str(out)]
-    print("+", " ".join(cmd), flush=True)
-    res = subprocess.run(cmd, cwd=WORK, capture_output=True, text=True, timeout=600)
-    print(res.stdout[-2000:])
+    cp = os.pathsep.join([str(jar)] + [str(x) for x in libs])
+    cmd = ["java", "-cp", cp, "net.minecraft.data.Main", "--reports", "--output", str(out)]
+    print("+ java -cp <client.jar + %d libraries> net.minecraft.data.Main --reports --output %s" % (len(libs), out), flush=True)
+    try:
+        res = subprocess.run(cmd, cwd=WORK, capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        raise SystemExit("::error title=mc-test::the data generator did not finish within 600s")
+    log = (res.stdout or "") + ("\n--- stderr ---\n" + res.stderr if res.stderr else "")
+    (WORK / "generator.log").write_text(log, encoding="utf-8")
+    print(log[-3000:])
     if res.returncode != 0:
-        print(res.stderr[-2000:])
-        raise SystemExit(f"::error title=mc-test::the data generator exited with {res.returncode}")
+        tail = " | ".join(x.strip() for x in log.strip().splitlines()[-4:])[:400]
+        raise SystemExit(f"::error title=mc-test::the data generator exited with {res.returncode}: {tail}")
     target = out / "reports" / "commands.json"
     if not target.is_file():
-        raise SystemExit(f"::error title=mc-test::the data generator did not write {target}")
+        found = sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file())[:15]
+        raise SystemExit(f"::error title=mc-test::the data generator wrote no {target.relative_to(WORK)}; it wrote: {found or 'nothing'}")
     return json.loads(target.read_text(encoding="utf-8"))
 
 
@@ -393,11 +438,15 @@ def cmd_test(args):
     findings, checked, note = [], 0, ""
     override = os.environ.get("MC_TEST_COMMANDS_JSON")
     try:
-        tree = json.loads(Path(override).read_text(encoding="utf-8")) if override else generate_commands(download_client(args.mc_version))
+        if override:
+            tree = json.loads(Path(override).read_text(encoding="utf-8"))
+        else:
+            jar, libs = download_client(args.mc_version)
+            tree = generate_commands(jar, libs)
         note = f"client `{args.mc_version}` command tree: {len(_children(tree))} top-level commands."
         findings, checked = validate_commands(tree)
-    except SystemExit as e:                       # download / generator problem: a finding about the CI, not the pack
-        msg = str(e)
+    except (SystemExit, Exception) as e:          # download / generator problem: a finding about the CI, not the pack
+        msg = str(e) if isinstance(e, SystemExit) else f"::error title=mc-test::{type(e).__name__}: {e}"
         print(msg)
         findings.append({"kind": "ci", "level": "error", "file": ".github/workflows/ci.yml", "line": 1,
                          "title": "mc-test could not obtain the command tree", "detail": re.sub(r"^::error title=mc-test::", "", msg)})
