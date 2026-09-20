@@ -21,3 +21,8 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+# local runs of the CI helpers
+smoke-server/
+REFERENCE.md
+__pycache__/
+*.pyc
