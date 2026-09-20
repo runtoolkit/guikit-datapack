@@ -8,6 +8,10 @@ function guikit:internal/clear_w
 data merge storage guikit:w {slot:11, item:"minecraft:gold_nugget", id:"demo:coin", name:{text:"+1 coin",color:"yellow",italic:false}, lore:[]}
 function guikit:widget/button
 function guikit:internal/clear_w
+data merge storage guikit:w {slot:22, item:"minecraft:diamond", id:"demo:combo", name:{text:"Diamond (VIP)",color:"aqua",italic:false}, lore:[{text:"Needs tag vip AND XP level 1, costs 3 coins",color:"gray",italic:false}]}
+function guikit:widget/button
+
+function guikit:internal/clear_w
 data merge storage guikit:w {slot:12, item:"minecraft:iron_sword", id:"demo:sword", name:{text:"Buy sword",color:"aqua",italic:false}, lore:[{text:"Costs 5 coins (score demo.coins)",color:"gray",italic:false}]}
 function guikit:widget/button
 function guikit:internal/clear_w

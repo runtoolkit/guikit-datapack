@@ -36,6 +36,8 @@ data merge storage guikit:p {id:"demo:link"}
 function guikit:widget/button_probe with storage guikit:p
 data merge storage guikit:p {id:"demo:lvl"}
 function guikit:widget/button_probe with storage guikit:p
+data merge storage guikit:p {id:"demo:combo"}
+function guikit:widget/button_probe with storage guikit:p
 
 # --- page 2: radio (difficulty, 3 options -- direct-assign, unlike cycle's auto-increment)
 data merge storage guikit:p {id:"diff_easy", fn:"demo:click/diff_easy"}

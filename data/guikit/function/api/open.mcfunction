@@ -30,6 +30,8 @@ scoreboard players operation @e[type=#guikit:container,tag=guikit.new,distance=.
 tag @e[type=#guikit:container,tag=guikit.new,distance=..1] remove guikit.new
 
 # state
+# guikit.drop is the vanilla drop statistic: it also counts drops made while no menu was open, so start clean
+scoreboard players set @s guikit.drop 0
 execute store result score @s guikit.page run data get storage guikit:in page
 execute store result score @s guikit.timer run data get storage guikit:in timer
 data modify storage guikit:ctx menu set from storage guikit:in menu

@@ -11,4 +11,7 @@ data remove storage guikit:ctx cdef
 data remove storage guikit:ctx uid
 data remove storage guikit:ctx pad
 data remove storage guikit:ctx i
+data remove storage guikit:cnd items
+data remove storage guikit:cnd cur
+data remove storage guikit:cnd i
 data remove storage guikit:p id
