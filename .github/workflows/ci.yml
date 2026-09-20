@@ -11,6 +11,9 @@
 # [10] pack.mcmeta consistency check (root vs examples/guikit-demo: same min_format/max_format)
 # [17] core + demo zips  [18] zip verification   [21] re-run mecha against the packaged zips
 # [19] SHA256SUMS         [20] release notes + opt-in pruning of old build-* releases
+# [22] static checks job (scripts/ci/check_pack.py): 26.3 pitfalls, macro lines, function/tag references,
+#      scoreboard objectives, unused functions, json, pack.mcmeta      [23] mecha errors as inline annotations
+# [24] mecha version pinned (MECHA_VERSION below), still no dependency file needed
 
 name: CI
 
@@ -45,6 +48,8 @@ concurrency:
 
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # [24] bump deliberately (and check the lint job) when a new mecha release should be used
+  MECHA_VERSION: "0.101.0"
 
 jobs:
   lint:
@@ -66,7 +71,11 @@ jobs:
         run: python3 --version
 
       - name: Install mecha
-        run: python3 -m pip install --user mecha
+        run: python3 -m pip install --user "mecha==$MECHA_VERSION"
+
+      # [23] mecha prints `ERROR | mecha <msg>` + `| file:line:col`; the matcher turns that into annotations
+      - name: Register problem matcher
+        run: echo "::add-matcher::.github/ci/mecha-matcher.json"
 
       - name: Run mecha
         run: python3 -m mecha "${{ matrix.pack }}"
@@ -112,8 +121,23 @@ jobs:
             exit 1
           fi
 
+  # [22] everything mecha does not look at, see scripts/ci/check_pack.py (run it locally the same way)
+  checks:
+    name: static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install mecha
+        run: python3 -m pip install --user "mecha==$MECHA_VERSION"
+
+      - name: Run checks
+        run: python3 scripts/ci/check_pack.py
+
   build:
-    needs: [ lint, pack-metadata ]
+    needs: [ lint, pack-metadata, checks ]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -132,13 +156,17 @@ jobs:
       - name: Verify archives
         run: |
           set -euo pipefail
+          # list first, then grep the variable: `unzip -Z1 | grep -q` under pipefail fails at random (grep exits
+          # at the first hit, unzip gets SIGPIPE and the pipeline reports failure; ~1 run in 5 here)
           for z in datapack.zip guikit-demo.zip; do
-            unzip -Z1 "$z" | grep -qx 'pack.mcmeta' || { echo "::error::$z has no pack.mcmeta at its root"; exit 1; }
-            unzip -Z1 "$z" | grep -q '^data/' || { echo "::error::$z has no data/ folder"; exit 1; }
+            entries=$(unzip -Z1 "$z")
+            grep -qx 'pack.mcmeta' <<< "$entries" || { echo "::error::$z has no pack.mcmeta at its root"; exit 1; }
+            grep -q '^data/' <<< "$entries" || { echo "::error::$z has no data/ folder"; exit 1; }
             size=$(stat -c%s "$z")
             if [ "$size" -ge 5242880 ]; then echo "::error::$z is $size bytes (limit 5 MiB)"; exit 1; fi
           done
-          if unzip -Z1 datapack.zip | grep -qE '^(examples|\.github)/'; then
+          core=$(unzip -Z1 datapack.zip)
+          if grep -qE '^(examples|scripts|\.github)/' <<< "$core"; then
             echo "::error::datapack.zip contains repo-only folders"; exit 1
           fi
           {
@@ -155,7 +183,7 @@ jobs:
       - name: Re-validate packaged zips with mecha
         run: |
           set -euo pipefail
-          python3 -m pip install --user mecha
+          python3 -m pip install --user "mecha==$MECHA_VERSION"
           rm -rf verify_core verify_demo
           unzip -q datapack.zip -d verify_core
           unzip -q guikit-demo.zip -d verify_demo
