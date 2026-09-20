@@ -1,5 +1,6 @@
 # guikit :: load
 scoreboard objectives add guikit.timer dummy
+scoreboard objectives add guikit.tmax dummy
 scoreboard objectives add guikit.click dummy
 scoreboard objectives add guikit.page dummy
 scoreboard objectives add guikit.tmp dummy

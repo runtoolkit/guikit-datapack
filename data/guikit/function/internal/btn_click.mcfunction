@@ -8,7 +8,6 @@
 #                    before cmd/url. Not enough -> `poor` message, nothing runs, nothing is taken
 #   poor:"..."       message when the cost cannot be paid (no double quotes). Default "You can't afford that."
 #   close:1b         close the menu after the command
-#   timer:N          reset the menu timeout to N ticks on a successful click
 #   locked_item:"minecraft:barrier"   look when cond fails or the cost is not affordable (widget/button)
 data remove storage guikit:btn cur
 $data modify storage guikit:btn cur set from storage guikit:btn defs."$(id)"
@@ -24,7 +23,6 @@ execute if score #paid guikit.tmp matches 0 run return run function guikit:inter
 
 # decide now: the command may overwrite guikit:btn cur (e.g. by running another button)
 execute store success score #btn_close guikit.tmp if data storage guikit:btn cur{close:1b}
-execute if data storage guikit:btn cur.timer run function guikit:internal/btn_timer with storage guikit:btn cur
 execute if data storage guikit:btn cur.cmd run function guikit:internal/btn_cmd with storage guikit:btn cur
 execute if data storage guikit:btn cur.url run function guikit:internal/btn_url with storage guikit:btn cur
 execute if score #btn_close guikit.tmp matches 1 if score @s guikit.uid matches 1.. run function guikit:api/close

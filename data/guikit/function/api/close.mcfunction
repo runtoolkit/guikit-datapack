@@ -8,6 +8,7 @@ execute as @e[type=#guikit:container,tag=guikit.cart] if score @s guikit.uid = #
 function guikit:internal/safe_clear
 
 scoreboard players reset @s guikit.timer
+scoreboard players reset @s guikit.tmax
 scoreboard players reset @s guikit.page
 scoreboard players reset @s guikit.dirty
 scoreboard players reset @s guikit.uid
